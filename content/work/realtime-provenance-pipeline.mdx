@@ -1,0 +1,52 @@
+---
+title: "Realtime Provenance Pipeline"
+description: "Tracking the lineage of every record as it moves through a streaming system — and making that lineage explorable."
+date: 2026-02-01
+summary: "A streaming data system that records and visualizes the provenance of every record end-to-end."
+role: "Design & implementation"
+timeframe: "2025–2026"
+stack: ["TypeScript", "Next.js", "d3", "React Flow"]
+featured: true
+tags: ["data", "visualization", "architecture"]
+links:
+  repo: "https://github.com/nick-buser"
+---
+
+This is a **placeholder case study** that exists to prove the content pipeline
+end to end: prose, code, and interactive islands all rendering from a single
+MDX file. Replace it with a real writeup.
+
+## The shape of the system
+
+Records flow from a source, fan out through parallel transform and validation
+stages, and converge on a sink. The architecture below is a live
+<code>React Flow</code> island — pan, zoom, and drag the nodes.
+
+<FlowDiagram />
+
+<Callout type="note">
+  Diagrams like this are real components, not screenshots. Drive them with the
+  actual topology of whatever you're describing and they stay accurate.
+</Callout>
+
+## Throughput over a week
+
+Below is a d3 island rendering a simple series. In a real writeup you'd pass it
+measured data and annotate the interesting moments.
+
+<D3BarChart />
+
+## A snippet, syntax-highlighted
+
+```ts
+type Provenance = {
+  recordId: string;
+  stage: "source" | "transform" | "validate" | "sink";
+  at: number;
+};
+```
+
+## Where this goes next
+
+The reading layer (typography, figures, footnotes), the visual language, and
+the real narrative all come from the design phase. The plumbing is done.

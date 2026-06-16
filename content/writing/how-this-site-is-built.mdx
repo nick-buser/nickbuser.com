@@ -1,0 +1,27 @@
+---
+title: "How this site is built"
+description: "A short tour of the content pipeline: MDX, zod-validated frontmatter, and interactive islands."
+date: 2026-03-10
+tags: ["meta", "nextjs", "mdx"]
+---
+
+Posts on this site are MDX files in the repo. Frontmatter is validated against a
+[zod](https://zod.dev) schema at build time, so a malformed post fails the build
+instead of shipping broken.
+
+The interesting part is that prose and **interactive components live in the same
+file**. This chart is a d3 island embedded inline:
+
+<D3BarChart />
+
+Everything around the islands is static HTML rendered on the server — only the
+islands ship JavaScript and hydrate. That keeps the reading experience fast
+while still allowing rich, bespoke interactivity exactly where the content earns
+it.
+
+<Callout type="tip">
+  The same `<D3BarChart />` and `<FlowDiagram />` components are available in any
+  writeup. Add new ones by registering them in the MDX components map.
+</Callout>
+
+That's the whole idea: Medium-style writeups, but with real, custom visuals.
