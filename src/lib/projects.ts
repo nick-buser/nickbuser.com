@@ -85,18 +85,24 @@ export const projects: Project[] = [
     result:
       "A full-stack explorer of notes and visualizations across thinkers and works, with an optional Lean 4 proof-checking seam.",
     stack: ["hono", "drizzle", "postgres", "react", "lean 4"],
-    status: "Built",
+    status: "Live",
     section: "deployed",
-    links: { repo: "https://github.com/nick-buser/philosophy_explorer" },
+    links: {
+      live: "https://philosophy-explorer.pages.dev/logic",
+      repo: "https://github.com/nick-buser/philosophy_explorer",
+    },
   },
   {
-    title: "The Polyglot’s Atlas",
+    title: "Language Learning",
     result:
       "Interactive grammar instruments for language study — drag a sentence apart, turn a register dial, swap a particle, and the grammar answers back.",
     stack: ["react", "vite", "web audio"],
-    status: "Built",
+    status: "Live",
     section: "deployed",
-    links: { repo: "https://github.com/nick-buser/language-learn" },
+    links: {
+      live: "https://language-learn-38r.pages.dev/",
+      repo: "https://github.com/nick-buser/language-learn",
+    },
   },
   {
     title: "Math Explorer",
