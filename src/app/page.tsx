@@ -27,7 +27,6 @@ export default function Home() {
         >
           <ExtLink href={site.socials.github}>GitHub</ExtLink>
           <ExtLink href={site.socials.linkedin}>LinkedIn</ExtLink>
-          <ExtLink href={site.socials.email}>Email</ExtLink>
         </nav>
       </header>
 

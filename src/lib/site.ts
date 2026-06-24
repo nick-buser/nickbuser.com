@@ -10,7 +10,6 @@ export const site = {
     "Engineer. Interactive writeups and project case studies on systems, data, and visualization.",
   author: {
     name: "Nick Buser",
-    email: "nicholas.buser@gmail.com",
   },
   nav: [
     { title: "Work", href: "/" },
@@ -20,7 +19,6 @@ export const site = {
   socials: {
     github: "https://github.com/nick-buser",
     linkedin: "https://www.linkedin.com/in/nick-buser-26bb99154/",
-    email: "mailto:nicholas.buser@gmail.com",
   },
 } as const;
 

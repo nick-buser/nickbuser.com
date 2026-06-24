@@ -11,7 +11,6 @@ export function SiteFooter() {
         <div className="flex flex-wrap gap-5">
           <ExtLink href={site.socials.github}>GitHub</ExtLink>
           <ExtLink href={site.socials.linkedin}>LinkedIn</ExtLink>
-          <ExtLink href={site.socials.email}>Email</ExtLink>
           <ExtLink href="/feed.xml">RSS</ExtLink>
         </div>
       </div>

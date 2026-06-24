@@ -17,8 +17,8 @@ export default function AboutPage() {
         </p>
         <p>
           Reach me on{" "}
-          <a href={site.socials.github}>GitHub</a> or by{" "}
-          <a href={`mailto:${site.author.email}`}>email</a>.
+          <a href={site.socials.github}>GitHub</a> or{" "}
+          <a href={site.socials.linkedin}>LinkedIn</a>.
         </p>
       </div>
     </div>
