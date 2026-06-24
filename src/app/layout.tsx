@@ -49,7 +49,6 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const searchItems: SearchItem[] = [
-    { title: "Home", href: "/", group: "Pages" },
     ...site.nav.map((n) => ({ title: n.title, href: n.href, group: "Pages" })),
     ...getAllWork().map((d) => ({
       title: d.frontmatter.title,

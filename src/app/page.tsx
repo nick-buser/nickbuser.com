@@ -1,7 +1,7 @@
 import { site } from "@/lib/site";
 import { projects } from "@/lib/projects";
-import { ProjectCard } from "@/components/project-card";
-import { ExtLink, SectionLabel } from "@/components/ui";
+import { ExtLink } from "@/components/ui";
+import { WorkBrowser } from "@/components/work-browser";
 
 export default function Home() {
   return (
@@ -23,12 +23,7 @@ export default function Home() {
           {site.name}
         </h1>
         <nav
-          style={{
-            display: "flex",
-            gap: 20,
-            marginTop: 22,
-            flexWrap: "wrap",
-          }}
+          style={{ display: "flex", gap: 20, marginTop: 22, flexWrap: "wrap" }}
         >
           <ExtLink href={site.socials.github}>GitHub</ExtLink>
           <ExtLink href={site.socials.linkedin}>LinkedIn</ExtLink>
@@ -38,15 +33,8 @@ export default function Home() {
 
       <hr className="nb-rule" style={{ margin: "8px 0 44px" }} />
 
-      {/* ── Work ──────────────────────────────────────────────────────── */}
-      <section>
-        <SectionLabel>Work</SectionLabel>
-        <div className="nb-cards">
-          {projects.map((project) => (
-            <ProjectCard key={project.title} project={project} />
-          ))}
-        </div>
-      </section>
+      {/* ── Work — grouped, searchable, filterable ──────────────────────── */}
+      <WorkBrowser projects={projects} />
     </div>
   );
 }

@@ -9,16 +9,27 @@
 
 export type ProjectStatus = "Live" | "Running" | "Built";
 
+/** Which bench a project sits on. Drives the grouping on the work page. */
+export type ProjectSection = "essays" | "local" | "deployed";
+
 export interface Project {
   title: string;
   /** One plain sentence: what it is, read by moving through it. */
   result: string;
   stack: string[];
   status: ProjectStatus;
+  section: ProjectSection;
   links: { live?: string; repo?: string };
   /** slug of an in-site case study under /work, if one exists */
   caseStudy?: string;
 }
+
+/** Section titles, in display order. */
+export const SECTIONS: { id: ProjectSection; title: string }[] = [
+  { id: "essays", title: "Visual essays" },
+  { id: "local", title: "Local development" },
+  { id: "deployed", title: "Deployed services" },
+];
 
 /** A "live" register (verdigris dot) vs a "complete" register (brass). */
 export function isLive(status: string): boolean {
@@ -32,6 +43,7 @@ export const projects: Project[] = [
       "An interactive visual essay on how whales — and animals more broadly — communicate, read by moving through it.",
     stack: ["html / css / js", "cloudflare workers"],
     status: "Live",
+    section: "essays",
     links: {
       live: "https://whale-talk.nicholas-buser.workers.dev/",
       repo: "https://github.com/nick-buser/whale-talk",
@@ -43,6 +55,7 @@ export const projects: Project[] = [
       "An interactive mechanism atlas over the GLP-1 drug literature, with every claim carrying its provenance, scope, and confidence.",
     stack: ["react", "typescript", "react flow", "molstar", "cloudflare"],
     status: "Live",
+    section: "essays",
     links: {
       live: "https://glp1-brain-effect-exploration.nicholas-buser.workers.dev/",
       repo: "https://github.com/nick-buser/glp1_brain_impact_exploration",
@@ -54,6 +67,7 @@ export const projects: Project[] = [
       "A formal workbench for Brandom’s inferentialism — a deontic scorekeeper tracking commitments and entitlements across perspectives.",
     stack: ["ocaml", "dune", "menhir", "qcheck"],
     status: "Built",
+    section: "local",
     links: { repo: "https://github.com/nick-buser/brandomian-space-of-reasons" },
   },
   {
@@ -62,6 +76,7 @@ export const projects: Project[] = [
       "A self-hosted internal developer platform on my own hardware: git push an app and it builds, deploys, and serves on the LAN.",
     stack: ["proxmox", "terraform", "ansible", "postgres", "caddy"],
     status: "Running",
+    section: "deployed",
     links: { repo: "https://github.com/nick-buser/homelab-template" },
     caseStudy: "the-homelab",
   },
@@ -71,6 +86,7 @@ export const projects: Project[] = [
       "A full-stack explorer of notes and visualizations across thinkers and works, with an optional Lean 4 proof-checking seam.",
     stack: ["hono", "drizzle", "postgres", "react", "lean 4"],
     status: "Built",
+    section: "local",
     links: { repo: "https://github.com/nick-buser/philosophy_explorer" },
   },
   {
@@ -79,6 +95,7 @@ export const projects: Project[] = [
       "Interactive grammar instruments for language study — drag a sentence apart, turn a register dial, swap a particle, and the grammar answers back.",
     stack: ["react", "vite", "web audio"],
     status: "Built",
+    section: "essays",
     links: { repo: "https://github.com/nick-buser/language-learn" },
   },
 ];

@@ -13,7 +13,7 @@ export const site = {
     email: "nicholas.buser@gmail.com",
   },
   nav: [
-    { title: "Work", href: "/work" },
+    { title: "Work", href: "/" },
     { title: "Writing", href: "/writing" },
     { title: "About", href: "/about" },
   ],

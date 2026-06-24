@@ -42,7 +42,7 @@ export default async function WorkPage({
 
   return (
     <div className="nb-article nb-settle" style={{ padding: "56px 0 96px" }}>
-      <Link href="/work" className="nb-extlink">
+      <Link href="/" className="nb-extlink">
         ← Work
       </Link>
 
