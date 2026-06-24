@@ -117,6 +117,7 @@
   /* ---- LAYOUT ---- */
   --content-max: 64rem; /* the bench width — matches the design wrap */
   --reading-max: 42rem; /* ~66ch measure column */
+  --figure-max: 54rem;  /* widest a figure/diagram breaks out — TOC must clear this */
   --page-gutter: 28px;
 
   /* ---- ELEVATION ---- matte, cool, faint */
@@ -679,7 +680,7 @@ hr {
 .nb-figure {
   margin: var(--space-7) 0;
   /* break out wider than the reading measure, stay centered on it */
-  width: min(54rem, 92vw);
+  width: min(var(--figure-max), 92vw);
   margin-left: 50%;
   transform: translateX(-50%);
 }
@@ -775,13 +776,13 @@ hr {
 .nb-toc {
   display: none;
 }
-@media (min-width: 1240px) {
+@media (min-width: 1400px) {
   .nb-toc {
     display: block;
     position: fixed;
     top: 7.5rem;
-    /* sit just left of the centered reading column (max 42rem) */
-    right: calc(50% + 21rem + 2.25rem);
+    /* sit just left of the widest figure (--figure-max), not just the reading column */
+    right: calc(50% + var(--figure-max) / 2 + var(--page-gutter));
     width: 13rem;
     max-height: calc(100vh - 11rem);
     overflow-y: auto;
