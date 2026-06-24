@@ -28,19 +28,20 @@ machinery, and the handful of decisions I'd defend.
 
 ## The shape of it
 
-Three Proxmox nodes, split by **data gravity** rather than by application. One
-node is the stateful tier and nothing important lives anywhere else; the other
-two are disposable compute that lean on it.
+Three Proxmox nodes, split by **data gravity** rather than by application: one
+holds all the durable state, and the other two are compute that leans on it —
+one always on, one woken only when it's needed.
 
-<Figure num="Fig. 1" caption="Three nodes split by data gravity, fronted by one proxy. The compute tiers are disposable; the NAS holds everything durable.">
+<Figure num="Fig. 1" caption="Three nodes split by data gravity, behind one proxy: a data tier that holds everything durable, an always-on platform tier, and a tower woken on demand.">
   <HomelabTopology />
 </Figure>
 
-`pve` is the NAS — ZFS, Postgres, the Garage object store, the container
-registry. `geekom1` is the platform tier: the forge, CI, the proxy, the deploy
-target. `pve-tower01` carries the GPU and the work that wants it — local
-inference, render jobs, FPGA synthesis. Put the durable state in one place and
-the rest of the estate becomes cattle.
+One node is the **NAS** — ZFS, Postgres, the object store, the container
+registry — and nothing durable lives anywhere else. A second is the **always-on
+tier** for the things I want up around the clock: the forge, CI, the proxy,
+logging, the deploy target. The third is an **on-demand tower** with the GPU,
+woken for the work that wants it — local inference, render jobs, FPGA synthesis.
+Put the durable state in one place and the rest of the estate becomes cattle.
 
 Two tools own two different time horizons. **Terraform creates** — every
 container and VM is a module, and each carries `prevent_destroy` plus a broad
@@ -58,10 +59,11 @@ DNS record points at Caddy's address **on the tailnet**, so the request crosses
 WireGuard, not the open internet.
 
 <Callout type="note">
-  The whole repo is driven by one tool, `labctl`, which reads the Ansible Vault
-  password from the macOS Keychain and writes it to a short-lived file for the
-  runner. That one detail is what makes the lab agent-operable: deploys, vault
-  reads, and edits all run start-to-finish with no interactive prompt.
+  The whole repo is driven by a single command-line tool, and every command runs
+  non-interactively: the automation credential is sourced from a local secret
+  store and handed to the runner without a prompt. That one property is what makes
+  the lab agent-operable — deploys, configuration changes, and secret reads all
+  run start to finish with nothing waiting on a human to type a password.
 </Callout>
 
 ## git push, and it deploys
@@ -121,10 +123,10 @@ an idempotent playbook renders the SQL. Nobody hand-writes a `GRANT` twice.
 
 ## The event log
 
-This is the part I'm most pleased with. Services need to emit domain events —
-"a device went offline", "a build was flashed" — without the classic dual-write
-bug, where you commit to the database and then fail to publish to the broker (or
-the reverse) and the two drift apart forever.
+Services need to emit domain events — "a device went offline", "a build was
+flashed" — without the classic dual-write bug: you commit to the database and
+then fail to publish to the broker (or the reverse), and the two drift apart
+forever.
 
 The fix is the **transactional outbox**. A service writes its business change and
 an `outbox` row in the *same* database transaction. It never calls the broker at
@@ -317,5 +319,5 @@ Step back and the same few moves recur in every layer:
   idempotent, self-converging deploy. The marginal app is nearly free.
 
 The result is a small estate that behaves like a much larger one — and, because a
-single tool drives it with the vault password pulled quietly from the keychain,
-one I can hand to an agent and let it do the work.
+single tool drives the whole thing non-interactively, one I can hand to an agent
+and let it do the work.

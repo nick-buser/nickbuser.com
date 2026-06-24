@@ -25,30 +25,30 @@ export function HomelabTopology() {
           sub: "internal CA · public LE",
           tone: "warm",
         }),
-        n("geekom1", { x: 460, y: 0 }, {
-          kind: "COMPUTE · geekom1",
+        n("platform", { x: 460, y: 0 }, {
+          kind: "ALWAYS-ON",
           label: "Platform tier",
-          sub: "Gitea · Woodpecker · Dokploy",
+          sub: "forge · CI · deploy",
           tone: "cool",
         }),
         n("tower", { x: 460, y: 195 }, {
-          kind: "GPU · pve-tower01",
+          kind: "ON-DEMAND",
           label: "ML tier",
-          sub: "vLLM · Manim · FPGA synth",
+          sub: "inference · render · synth",
           tone: "cool",
         }),
         n("nas", { x: 740, y: 95 }, {
-          kind: "NAS · pve",
+          kind: "NAS",
           label: "Data tier",
-          sub: "Postgres · Garage · ZFS",
+          sub: "Postgres · object store · ZFS",
           tone: "warm",
         }),
       ]}
       edges={[
         e("c-e", "client", "edge", { label: "request" }),
-        e("e-g", "edge", "geekom1"),
+        e("e-g", "edge", "platform"),
         e("e-t", "edge", "tower"),
-        e("g-n", "geekom1", "nas", { label: "data", dashed: true }),
+        e("g-n", "platform", "nas", { label: "data", dashed: true }),
         e("t-n", "tower", "nas", { label: "data", dashed: true }),
       ]}
     />

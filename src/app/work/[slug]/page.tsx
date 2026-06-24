@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getAllWork, getWork } from "@/lib/content";
 import { Mdx } from "@/components/mdx/mdx";
 import { Chip, ExtLink } from "@/components/ui";
+import { ReadingNav } from "@/components/reading-nav";
 
 export function generateStaticParams() {
   return getAllWork().map((d) => ({ slug: d.slug }));
@@ -101,6 +102,8 @@ export default async function WorkPage({
       <article className="prose nb-prose">
         <Mdx source={doc.content} />
       </article>
+
+      <ReadingNav />
     </div>
   );
 }
