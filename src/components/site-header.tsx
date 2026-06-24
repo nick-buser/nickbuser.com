@@ -8,17 +8,25 @@ export function SiteHeader() {
   const { toggle } = useCommandPalette();
   return (
     <header className="border-b border-border">
-      <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-        <Link href="/" className="font-mono text-sm font-semibold">
+      <div className="nb-wrap flex items-center justify-between py-4">
+        <Link
+          href="/"
+          aria-label={`${site.name} — home`}
+          style={{
+            fontFamily: "var(--font-display)",
+            fontVariationSettings: "'opsz' 100",
+            fontWeight: 600,
+            fontSize: "1.05rem",
+            letterSpacing: "-0.01em",
+            color: "var(--foreground)",
+            textDecoration: "none",
+          }}
+        >
           {site.name}
         </Link>
-        <nav className="flex items-center gap-6 text-sm">
+        <nav className="flex items-center gap-6">
           {site.nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
+            <Link key={item.href} href={item.href} className="nb-extlink">
               {item.title}
             </Link>
           ))}
@@ -26,7 +34,7 @@ export function SiteHeader() {
             type="button"
             onClick={toggle}
             aria-label="Open command menu"
-            className="rounded-md border border-border px-2 py-1 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
+            className="rounded-[2px] border border-border px-2 py-1 font-mono text-[11px] uppercase tracking-wider text-muted-foreground transition-colors hover:border-brass hover:text-brass"
           >
             ⌘K
           </button>

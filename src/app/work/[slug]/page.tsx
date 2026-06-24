@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getAllWork, getWork } from "@/lib/content";
 import { Mdx } from "@/components/mdx/mdx";
+import { Chip, ExtLink } from "@/components/ui";
+import { ReadingNav } from "@/components/reading-nav";
 
 export function generateStaticParams() {
   return getAllWork().map((d) => ({ slug: d.slug }));
@@ -32,28 +34,77 @@ export default async function WorkPage({
   if (!doc) notFound();
   const { frontmatter, readingTime } = doc;
 
+  const meta = [
+    frontmatter.role,
+    frontmatter.timeframe,
+    readingTime,
+  ].filter(Boolean) as string[];
+
   return (
-    <div className="mx-auto max-w-3xl px-6 py-16">
-      <Link
-        href="/work"
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
+    <>
+    <ReadingNav />
+    <div className="nb-article nb-settle" style={{ padding: "56px 0 96px" }}>
+      <Link href="/" className="nb-extlink">
         ← Work
       </Link>
-      <header className="mb-10 mt-4">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {frontmatter.title}
-        </h1>
-        <p className="mt-3 text-muted-foreground">{frontmatter.description}</p>
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          {frontmatter.role ? <span>{frontmatter.role}</span> : null}
-          {frontmatter.timeframe ? <span>{frontmatter.timeframe}</span> : null}
-          <span>{readingTime}</span>
-        </div>
+
+      <header style={{ margin: "28px 0 var(--space-7)" }}>
+        <p className="nb-article__eyebrow">Case study</p>
+        <h1 className="nb-article__title">{frontmatter.title}</h1>
+        <p className="nb-article__lead">{frontmatter.description}</p>
+
+        {meta.length ? (
+          <div className="nb-article__meta">
+            {meta.map((m, i) => (
+              <span key={m} style={{ display: "flex", gap: "14px" }}>
+                {i > 0 ? (
+                  <span className="nb-article__meta-sep" aria-hidden>
+                    ·
+                  </span>
+                ) : null}
+                {m}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {frontmatter.stack.length ? (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 8,
+              marginTop: "var(--space-4)",
+            }}
+          >
+            {frontmatter.stack.map((s) => (
+              <Chip key={s}>{s}</Chip>
+            ))}
+          </div>
+        ) : null}
+
+        {frontmatter.links.live || frontmatter.links.repo ? (
+          <div
+            style={{
+              display: "flex",
+              gap: 22,
+              marginTop: "var(--space-5)",
+            }}
+          >
+            {frontmatter.links.live ? (
+              <ExtLink href={frontmatter.links.live}>Live</ExtLink>
+            ) : null}
+            {frontmatter.links.repo ? (
+              <ExtLink href={frontmatter.links.repo}>Repo</ExtLink>
+            ) : null}
+          </div>
+        ) : null}
       </header>
-      <article className="prose max-w-none dark:prose-invert">
+
+      <article className="prose nb-prose">
         <Mdx source={doc.content} />
       </article>
     </div>
+    </>
   );
 }

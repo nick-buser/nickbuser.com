@@ -1,0 +1,323 @@
+---
+title: "The Homelab"
+description: "A self-hosted internal developer platform on my own hardware — git push an app and it builds, deploys, and serves on the LAN, over a spine of event streaming, observability, and content-addressed provenance."
+date: 2026-06-22
+summary: "A self-hosted internal developer platform: git push an app and it builds, deploys, and serves on the LAN."
+role: "Design, build & operation"
+timeframe: "Ongoing"
+stack:
+  ["proxmox", "terraform", "ansible", "postgres", "redpanda", "debezium", "garage s3", "signoz", "caddy", "tailscale"]
+featured: true
+tags: ["infrastructure", "platform", "streaming", "observability"]
+links:
+  repo: "https://github.com/nick-buser/homelab-template"
+---
+
+The homelab is an internal developer platform that happens to run on three
+second-hand machines in my apartment. You push an app to a private Git server;
+minutes later it has built, run its migrations, deployed, and is being served
+over TLS on a real hostname — with its events on a log, its traces in one place,
+and its secrets nowhere the workload can read them. None of that is bespoke per
+app. It falls out of a small set of conventions wired once and reused, and the
+whole thing is driven from a single command-line tool that an agent can operate
+without ever stopping to ask for a password.
+
+This is a writeup of how it actually fits together — the platform spine, the
+event log, the way the edge devices and the FPGA bench hang off the same
+machinery, and the handful of decisions I'd defend.
+
+## The shape of it
+
+Three Proxmox nodes, split by **data gravity** rather than by application: one
+holds all the durable state, and the other two are compute that leans on it —
+one always on, one woken only when it's needed.
+
+<Figure num="Fig. 1" caption="Three nodes split by data gravity, behind one proxy: a data tier that holds everything durable, an always-on platform tier, and a tower woken on demand.">
+  <HomelabTopology />
+</Figure>
+
+One node is the **NAS** — ZFS, Postgres, the object store, the container
+registry — and nothing durable lives anywhere else. A second is the **always-on
+tier** for the things I want up around the clock: the forge, CI, the proxy,
+logging, the deploy target. The third is an **on-demand tower** with the GPU,
+woken for the work that wants it — local inference, render jobs, FPGA synthesis.
+Put the durable state in one place and the rest of the estate becomes cattle.
+
+Two tools own two different time horizons. **Terraform creates** — every
+container and VM is a module, and each carries `prevent_destroy` plus a broad
+`ignore_changes`, so the things Ansible adjusts at runtime never read as drift
+Terraform wants to destroy. **Ansible operates** — playbooks, ordered by a
+dependency DAG, are the only way anything is configured after it boots. The seam
+between "what exists" and "how it's configured" is drawn on purpose.
+
+Reaching any of it goes through Caddy, and the TLS story is deliberately two
+stacks side by side. Internal `*.lab` names are served with Caddy's own
+certificate authority. Anything that also needs to work from a locked-down
+device gets a real Let's Encrypt certificate on a public domain, issued over a
+Cloudflare DNS-01 challenge — no inbound port is ever opened. Off-LAN, a public
+DNS record points at Caddy's address **on the tailnet**, so the request crosses
+WireGuard, not the open internet.
+
+<Callout type="note">
+  The whole repo is driven by a single command-line tool, and every command runs
+  non-interactively: the automation credential is sourced from a local secret
+  store and handed to the runner without a prompt. That one property is what makes
+  the lab agent-operable — deploys, configuration changes, and secret reads all
+  run start to finish with nothing waiting on a human to type a password.
+</Callout>
+
+## git push, and it deploys
+
+The application platform is five pieces in a line: a forge, a CI server, a
+container registry, a deploy target, and the proxy. The contract for an app
+author is "open a pull request"; everything downstream is convention.
+
+<Figure num="Fig. 2" caption="The internal developer platform. A merge ships to a dev slot; a version tag ships to prod. Migrations run as their own step under a privileged role the runtime never holds.">
+  <CicdFlow />
+</Figure>
+
+Gitea is the forge and doubles as the registry. Woodpecker watches it, runs the
+checks, builds the image with buildx, and pushes it back to the registry. Dokploy
+— a self-hosted PaaS over Docker Swarm and Traefik — is told to redeploy. Caddy
+already routes a wildcard to Dokploy, so **onboarding an app touches no proxy or
+DNS config at all**.
+
+The model is trunk-based and the tag is the release record:
+
+| Git event       | Image tags                  | Lands on                |
+| --------------- | --------------------------- | ----------------------- |
+| pull request    | `:pr-N-<sha>`               | one shared dev slot     |
+| merge to `main` | `:dev-latest`, `:main-<sha>`| the app's `-dev` deploy  |
+| tag `vX.Y.Z`    | `:prod-latest`, `:vX.Y.Z`   | the app's prod deploy   |
+
+I chose **one dev slot per app** over a Vercel-style preview-per-pull-request.
+On a fixed amount of my own hardware, a fresh environment per PR is a standing
+invitation to saturate the box; a single slot that the open PR pins, and that
+snaps back to `main` on merge, gives ninety percent of the value for a fraction
+of the running cost.
+
+Two things in this picture are load-bearing and easy to miss. First, **the
+running container never holds the credentials that can change its own schema.**
+Migrations are a separate CI step that connects as a privileged `rw` role; the
+app process connects as a DML-only `app` role and physically cannot run DDL.
+Second, CI secrets are **scoped by event** — the secrets that deploy or migrate
+production are not attached to pull-request pipelines, so a PR build, however
+malicious, has no credential that reaches prod.
+
+## One Postgres, many tenants
+
+There is a single shared Postgres instance, multi-tenanted by role rather than
+by spinning up a database server per app. Every project gets its own database
+and three roles, and the split between them is the security model:
+
+| Role  | Holds            | Used by                    | Can run DDL |
+| ----- | ---------------- | -------------------------- | ----------- |
+| `rw`  | owner / migrator | the CI migrate step        | yes         |
+| `app` | DML only         | the running container      | no          |
+| `ro`  | SELECT only      | analytics, debugging       | no          |
+
+To make "DML only" actually hold, `CREATE` on the public schema is revoked from
+everyone and granted back only to the migrator. New tenants are **contract-driven**:
+a row in a YAML file describes the project and its roles, a linter checks it, and
+an idempotent playbook renders the SQL. Nobody hand-writes a `GRANT` twice.
+
+## The event log
+
+Services need to emit domain events — "a device went offline", "a build was
+flashed" — without the classic dual-write bug: you commit to the database and
+then fail to publish to the broker (or the reverse), and the two drift apart
+forever.
+
+The fix is the **transactional outbox**. A service writes its business change and
+an `outbox` row in the *same* database transaction. It never calls the broker at
+all. Either both writes commit or neither does.
+
+<Figure num="Fig. 3" caption="No dual write. The business row and the event row commit together, or not at all; the write-ahead log is the single source of truth downstream.">
+  <OutboxTxnSvg />
+</Figure>
+
+From there, change data capture does the rest. Postgres runs with logical
+replication on; Debezium — hosted in Kafka Connect — tails the write-ahead log
+through a per-tenant replication slot and turns each new outbox row into a
+message on Redpanda.
+
+<Figure num="Fig. 4" caption="Outbox to Redpanda. Debezium's EventRouter reads the aggregate type off each row and routes it to a per-aggregate topic, stripping the change-data envelope so consumers see only the payload.">
+  <OutboxFlow />
+</Figure>
+
+The outbox table is plain, and its columns are the routing contract:
+
+```sql
+CREATE TABLE outbox (
+  id             BIGSERIAL PRIMARY KEY,
+  aggregate_type TEXT NOT NULL,   -- routes to <prefix>.<aggregate_type>
+  aggregate_id   TEXT NOT NULL,   -- becomes the Kafka message key
+  event_type     TEXT NOT NULL,
+  payload        JSONB NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Debezium's EventRouter transform reads `aggregate_type` and routes the event to a
+topic named `<env>.<project>.<aggregate>` — so a device lifecycle event from the
+embedded fleet lands on `prod.embedded.Device`, keyed by `aggregate_id`, with the
+database envelope stripped off. One outbox table fans out to as many
+aggregate-typed topics as the service has.
+
+<Callout type="tip">
+  A shared Postgres makes one thing genuinely dangerous: a *quiet* tenant. An
+  idle replication slot pins the write-ahead log at its last read position, and
+  a busy neighbour keeps that log growing until the disk fills. So every tenant
+  gets a tiny `debezium_heartbeat` table that an upsert touches every five
+  minutes — just enough to advance the slot and keep an inactive outbox from
+  holding the whole instance hostage.
+</Callout>
+
+The semantics are honest about their edges. Events arrive in commit order, with
+exactly-once delivery *relative to the database*; the consumer side is
+at-least-once, so consumers are expected to be idempotent. And onboarding a
+producer is the same shape as everything else here — append a contract row, scaffold
+its credentials into the vault, and run three idempotent deploys that converge:
+the broker play creates the SASL user and ACLs, the database play creates the
+replication role and publication, and the connector play registers Debezium only
+once it sees the publication exist. The first production tenant on this path is
+the embedded fleet — a device reboot issued from my laptop produces real
+`Device.offline` and `Device.online` events on the log, end to end.
+
+## Storage, and blast radius
+
+A single Garage node on the NAS is the object store for the whole estate: it
+backs the container registry, holds Gitea's large files and packages, gives every
+app a pair of tenant buckets, and absorbs Redpanda's tiered-storage offload. The
+interesting part isn't that one node does all of that — it's how access is
+partitioned so that one leaked key is not a master key.
+
+| Key            | Reaches                              | Notes                              |
+| -------------- | ----------------------------------- | ---------------------------------- |
+| `homelab-main` | the general / shared buckets        | the broad workhorse key            |
+| `firmware-ci`  | `firmware`, `bitstream` (read+write)| CI writes signed artifacts         |
+| `firmware-ro`  | `firmware`, `bitstream` (read-only) | the laptop fetches to flash        |
+| per-tenant     | exactly one bucket each             | pinned 1:1, off the shared grant   |
+
+The firmware and bitstream buckets are the sharp example: the broad `homelab-main`
+key is explicitly **denied** them, so the only credentials that can touch a device
+image are the narrow CI and read-only keys. A general credential leaking can't
+reach the artifacts that get flashed onto hardware.
+
+## Seeing the system
+
+Everything ships OpenTelemetry to one SigNoz instance — traces, metrics, and logs
+in a single pane. Application observability is wired with one deliberate trick:
+**the OTLP endpoint is a feature flag.** The instrumentation is compiled into
+every app but stays dormant until its endpoint variable is set, so observability
+is turned on entirely from the infrastructure side, per tenant, with no code
+change and no redeploy of the app's image.
+
+<Figure num="Fig. 5" caption="One telemetry sink for the platform; a second, narrower one for the language models. Apps and devices reach SigNoz over OTLP; the LLM workloads send richer traces to Langfuse.">
+  <ObservabilityFlow />
+</Figure>
+
+The language-model work gets its own lens. **Langfuse** captures prompts, traces,
+token cost, and evaluations — the things a generic tracing tool flattens. It runs
+as its own tenant with its own object storage, kept separate from the rest of the
+estate, and its per-project keys ride the exact same contract-to-vault pipeline as
+every database and bucket credential.
+
+<Callout type="note">
+  Wiring up telemetry surfaced its own recurring bug, and it's a good one: every
+  application stack reads "which environment am I" from a *different* variable —
+  `NODE_ENV`, `ASPNETCORE_ENVIRONMENT`, `DEPLOY_ENV`, and so on. The tenant
+  contract normalizes that per app rather than pretending one variable rules them
+  all. Most platform work is reconciling small honest differences like this, not
+  imposing a grand uniformity.
+</Callout>
+
+## The bench: firmware that proves where it came from
+
+The lab runs out to physical hardware — ESP32 microcontrollers and a Basys 3
+FPGA. The same CI server that builds web apps builds firmware and FPGA
+bitstreams, with one structural twist: FPGA synthesis needs a licensed toolchain
+that can't live in a throwaway Docker container, so it runs on a **second CI
+agent with no Docker at all**, and pipelines are label-scoped so a synthesis job
+can only ever be scheduled onto that machine. Build isolation by label algebra,
+not by network.
+
+<Figure num="Fig. 6" caption="The firmware path. A build is content-addressed by the commit it came from, stored immutably, indexed in Postgres, and verified by hash on the device before it flashes.">
+  <FirmwareProvenanceFlow />
+</Figure>
+
+Provenance here is plain and verifiable, and I want to be precise about what it
+is and isn't. There is **no signing, no SBOM, no attestation framework.** What
+there is: the git commit hash is compiled into the firmware at build time;
+artifacts are immutable, content-addressed objects in the firmware bucket; and a
+Postgres index maps every commit to its artifact. On delivery, `lab ota @<commit>`
+fetches by hash and **verifies the sha256 against the index row before it
+flashes.** The least-privilege key split is itself part of the guarantee — because
+only CI can write that bucket, an artifact found there provably came from CI.
+
+The devices report back, and this is where the edge meets the rest of the
+platform. One MQTT broker on the fabrication host fans a device's telemetry into
+three sinks at once, each answering a different question:
+
+<Figure num="Fig. 7" caption="One broker, three destinations. The same device stream becomes ephemeral metrics, durable state, and — through the outbox — a permanent event on the log.">
+  <DeviceSinksSvg />
+</Figure>
+
+A Telegraf bridge forwards metrics to SigNoz for the live operational view. A
+fleet-consumer writes device state and provenance into Postgres as the system of
+record. And because that write goes through the *same outbox pattern* as
+everything else, each lifecycle change also becomes a durable event on Redpanda.
+The firmware never learned any of this — it speaks MQTT and nothing more; the
+durability was added entirely on the platform side without touching the device.
+
+## Pictures that check themselves
+
+Some of the work the lab exists to support is explanatory: mathematical
+animations rendered with Manim. Rather than treat a rendered video as a file to
+copy around, the pipeline treats it as an **immutable, content-addressed fact**.
+
+<Figure num="Fig. 8" caption="A render is content-addressed into object storage; a Postgres row is the mutable index over immutable artifacts. The viewer reads the index and proxies the bytes, keeping the storage key server-side.">
+  <VizPipelineSvg />
+</Figure>
+
+A render job runs on the GPU node as a detached systemd unit, so a long batch
+survives a closed laptop. A publish step content-addresses the output into the
+object store — keyed by scene, commit, and content hash — and writes an index row
+to Postgres carrying the provenance and a `supersedes` link. Re-rendering never
+overwrites anything; "which version is current" is a question the database
+answers, not the filesystem. A small read-only viewer serves the gallery by
+querying the index over the `ro` role and proxying the object bytes, so the
+storage credential never leaves the server. It's the same instinct as the
+firmware bucket: immutable artifacts, a database as the mutable index over them,
+and the secret kept out of reach.
+
+## The graph tier, held in reserve
+
+Not everything is switched on, and saying so plainly is part of an honest writeup.
+Neo4j is provisioned but deliberately **starts on demand** — a graph database's
+JVM holds its configured heap whether or not anyone is querying it, which makes an
+idle one genuinely expensive in a way an idle Postgres is not. So it sits ready on
+the NVMe node, started by hand when a graph workload actually needs it, with its
+tenant contract written but its tables intentionally unbuilt until there's demand
+to justify them.
+
+## The through-lines
+
+Step back and the same few moves recur in every layer:
+
+- **One thing creates, another operates.** Terraform owns existence, Ansible owns
+  configuration, and the boundary is explicit everywhere.
+- **Least privilege as a structural property.** The runtime can't alter its
+  schema; a leaked storage key can't reach firmware; a PR build can't deploy
+  prod. Each is a boundary you'd otherwise have to remember, made into a thing the
+  system simply can't do.
+- **Immutable artifacts, mutable index.** Firmware, bitstreams, and renders are
+  content-addressed and never overwritten; a database row says which one is
+  current. Provenance becomes a hash comparison.
+- **Convention over per-app effort.** Databases, buckets, topics, telemetry, and
+  credentials are all onboarded by appending a contract row and running an
+  idempotent, self-converging deploy. The marginal app is nearly free.
+
+The result is a small estate that behaves like a much larger one — and, because a
+single tool drives the whole thing non-interactively, one I can hand to an agent
+and let it do the work.

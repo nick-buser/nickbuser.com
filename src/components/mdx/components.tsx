@@ -2,7 +2,20 @@ import Link from "next/link";
 import type { ComponentProps } from "react";
 import { D3BarChart } from "@/components/islands/d3-bar-chart";
 import { FlowDiagram } from "@/components/islands/flow-diagram";
+import {
+  HomelabTopology,
+  CicdFlow,
+  OutboxFlow,
+  ObservabilityFlow,
+  FirmwareProvenanceFlow,
+} from "@/components/islands/homelab-diagrams";
+import {
+  OutboxTxnSvg,
+  DeviceSinksSvg,
+  VizPipelineSvg,
+} from "@/components/diagrams/homelab-svgs";
 import { Callout } from "@/components/mdx/callout";
+import { Figure } from "@/components/mdx/figure";
 
 function Anchor({ href = "", ...props }: ComponentProps<"a">) {
   if (href.startsWith("/")) {
@@ -26,6 +39,15 @@ function Anchor({ href = "", ...props }: ComponentProps<"a">) {
 export const mdxComponents = {
   a: Anchor,
   Callout,
+  Figure,
   D3BarChart,
   FlowDiagram,
+  HomelabTopology,
+  CicdFlow,
+  OutboxFlow,
+  ObservabilityFlow,
+  FirmwareProvenanceFlow,
+  OutboxTxnSvg,
+  DeviceSinksSvg,
+  VizPipelineSvg,
 };

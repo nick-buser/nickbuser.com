@@ -13,12 +13,14 @@ export const site = {
     email: "nicholas.buser@gmail.com",
   },
   nav: [
-    { title: "Work", href: "/work" },
+    { title: "Work", href: "/" },
     { title: "Writing", href: "/writing" },
     { title: "About", href: "/about" },
   ],
   socials: {
     github: "https://github.com/nick-buser",
+    linkedin: "https://www.linkedin.com/in/nick-buser-26bb99154/",
+    email: "mailto:nicholas.buser@gmail.com",
   },
 } as const;
 
