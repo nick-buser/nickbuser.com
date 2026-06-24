@@ -1,75 +1,758 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/*
- * Design tokens — intentionally minimal and placeholder.
- * The Claude design session owns the real visual language; everything here is
- * semantic (background/foreground/muted/accent/border) so it can be re-skinned
- * by editing variables without touching component markup.
- */
+/* ============================================================
+   ATHANOR — the design language.
+   The laboratory of ideas: a warm-dark, instrument-grade workshop.
+   Dark is canonical; light is the same lab by daylight. Hierarchy is
+   carried by size, space, and a single rationed warm light — never by
+   decoration. Tokens live here (`:root` dark + `[data-theme="light"]`),
+   semantic names only; components reference these and nothing else.
+   ============================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --border: #e4e4e7;
-  --accent: #2563eb;
+  /* ---- PIGMENT (dark, canonical) ---------------------------- */
+  --umbra: #15171b; /* base field — the unlit room */
+  --umbra-raised: #1c1f25; /* raised surfaces, cards, wells */
+  --soot: #221d17; /* warm structural dark — hearth-side */
+  --vellum: #e9e1d2; /* primary text on dark */
+  --vellum-muted: #a89f8e; /* secondary text */
+  --brass: #9c8252; /* warm instrument metal — rules, gauges */
+  --steel: #79828b; /* cool instrument hairline */
+  --ember: #b5612e; /* the athanor's working light */
+  --rubedo: #c5512e; /* SACRED — red-gold of completion */
+  --gilt: #d9a458; /* metallic gleam at full charge */
+  --verdigris: #5e8c7e; /* the one cool accent — links, positive */
+  --caustic: #b8403b; /* danger — cool, flat, immediate */
+
+  /* ---- SEMANTIC (dark) -------------------------------------- */
+  --background: var(--umbra);
+  --foreground: var(--vellum);
+  --surface: var(--umbra-raised);
+  --surface-warm: var(--soot);
+  --muted: var(--umbra-raised);
+  --muted-foreground: var(--vellum-muted);
+
+  --border: #2a2d34;
+  --rule-warm: var(--brass);
+  --rule-cool: var(--steel);
+
+  --accent: var(--rubedo);
+  --accent-sacred: var(--rubedo);
+  --accent-gleam: var(--gilt);
+
+  --link: var(--verdigris);
+  --positive: var(--verdigris);
+  --danger: var(--caustic);
+
+  --ember-wash: color-mix(in oklch, var(--ember) 14%, transparent);
+  --ember-wash-strong: color-mix(in oklch, var(--ember) 24%, transparent);
+
+  color-scheme: dark;
+
+  /* ---- FONT FAMILIES ---- (next/font vars set in layout.tsx) */
+  --font-display: var(--font-fraunces), "Times New Roman", Georgia, serif;
+  --font-body: var(--font-spectral), Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo,
+    monospace;
+
+  /* ---- FRAUNCES AXES ---- incised & authoritative, not fussy */
+  --fraunces-display: "opsz" 144, "SOFT" 0, "WONK" 0;
+  --fraunces-head: "opsz" 72, "SOFT" 0, "WONK" 0;
+
+  /* ---- WEIGHTS ---- */
+  --weight-light: 300;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ---- FLUID TYPE SCALE ---- */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: clamp(1.0625rem, calc(0.98rem + 0.4vw), 1.25rem);
+  --text-md: clamp(1.2rem, calc(1.1rem + 0.5vw), 1.45rem);
+  --text-lg: clamp(1.45rem, calc(1.3rem + 0.75vw), 1.85rem);
+  --text-xl: clamp(1.85rem, calc(1.6rem + 1.2vw), 2.6rem);
+  --text-2xl: clamp(2.4rem, calc(2rem + 2vw), 3.6rem);
+  --text-3xl: clamp(3.2rem, calc(2.5rem + 3.4vw), 5.5rem);
+
+  /* ---- LINE HEIGHT ---- */
+  --leading-prose: 1.65;
+  --leading-ui: 1.5;
+  --leading-tight: 1.12;
+
+  /* ---- TRACKING ---- */
+  --tracking-label: 0.12em;
+  --tracking-tight: -0.01em;
+
+  /* ---- READING MEASURE ---- */
+  --measure: 66ch;
+  --measure-narrow: 54ch;
+
+  /* ---- SPACING SCALE ---- */
+  --space-0: 0;
+  --space-px: 1px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+  --space-10: 8rem;
+
+  /* ---- RADII ---- instrument-grade, never pill-soft */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  /* ---- HAIRLINES ---- */
+  --hairline: 1px;
+  --rule-width: 1px;
+  --rule-width-bold: 2px;
+
+  /* ---- LAYOUT ---- */
+  --content-max: 64rem; /* the bench width — matches the design wrap */
+  --reading-max: 42rem; /* ~66ch measure column */
+  --page-gutter: 28px;
+
+  /* ---- ELEVATION ---- matte, cool, faint */
+  --shadow-well: inset 0 1px 0 0 rgba(0, 0, 0, 0.25);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 16px rgba(0, 0, 0, 0.28);
+  --shadow-float: 0 8px 40px rgba(0, 0, 0, 0.45);
+
+  /* ---- MOTION ---- steady heat: weighted, deliberate, no bounce */
+  --ease-heat: cubic-bezier(0.2, 0, 0.1, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-quick: 150ms;
+  --dur-base: 280ms;
+  --dur-settle: 360ms;
+  --dur-slow: 360ms;
+  --dur-kindle: 320ms;
+  --settle-rise: 12px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --muted: #18181b;
-    --muted-foreground: #a1a1aa;
-    --border: #27272a;
-    --accent: #60a5fa;
-  }
+/* ============================================================
+   LIGHT — the same laboratory by daylight. Warm vellum + ink,
+   same instrument discipline. Never a washed inversion.
+   ============================================================ */
+:root[data-theme="light"],
+.theme-light {
+  --umbra: #ece4d4;
+  --umbra-raised: #f4eee1;
+  --soot: #e2d8c4;
+  --vellum: #ece4d4;
+  --vellum-muted: #5c5447;
+  --brass: #8a7038;
+  --steel: #6b747c;
+  --ember: #a85626;
+  --rubedo: #b4472a;
+  --gilt: #b68a3e;
+  --verdigris: #3e6b5e;
+  --caustic: #a63a33;
+
+  --background: var(--umbra);
+  --foreground: #262017; /* ink — the drawn line */
+  --surface: var(--umbra-raised);
+  --surface-warm: var(--soot);
+  --muted: var(--umbra-raised);
+  --muted-foreground: var(--vellum-muted);
+
+  --border: #d4c9b2;
+
+  --ember-wash: color-mix(in oklch, var(--ember) 12%, transparent);
+  --ember-wash-strong: color-mix(in oklch, var(--ember) 20%, transparent);
+
+  color-scheme: light;
 }
 
+/* ---- Tailwind theme bridge — keep semantic utilities working ---- */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-accent: var(--accent);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-link: var(--link);
+  --color-positive: var(--positive);
+  --color-brass: var(--brass);
+  --font-sans: var(--font-body);
+  --font-body: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+/* ============================================================
+   BASE — quiet bench defaults. #000 and #fff do not exist here.
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-prose);
+  font-feature-settings: "onum" 1, "kern" 1, "liga" 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
 }
 
-/* rehype-pretty-code: respect light/dark themes */
-:root {
-  --shiki-fg: #18181b;
+::selection {
+  background: var(--ember-wash-strong);
+  color: var(--foreground);
 }
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--foreground);
+  margin: 0 0 0.5em;
+  text-wrap: balance;
+}
+h1 {
+  font-variation-settings: var(--fraunces-display);
+  font-size: var(--text-2xl);
+}
+h2 {
+  font-variation-settings: var(--fraunces-head);
+  font-size: var(--text-xl);
+}
+h3 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+}
+h4 {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}
+
+p {
+  margin: 0 0 1em;
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  text-decoration-color: color-mix(in oklch, var(--link) 55%, transparent);
+  transition: text-decoration-color var(--dur-quick) var(--ease-heat),
+    color var(--dur-quick) var(--ease-heat);
+}
+a:hover {
+  text-decoration-color: var(--link);
+}
+
+code,
+kbd,
+samp {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+code:not(pre code) {
+  background: var(--muted);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  border: var(--hairline) solid var(--border);
+}
+
+hr {
+  border: 0;
+  border-top: var(--rule-width) solid var(--rule-warm);
+  opacity: 0.5;
+  margin: var(--space-6) 0;
+}
+
+::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-sacred);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   ATHANOR COMPONENT UTILITIES — static, CSS-only hover so the
+   page stays server-rendered (the brief's static-first rule).
+   ============================================================ */
+
+/* the bench column */
+.nb-wrap {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-inline: var(--page-gutter);
+}
+
+/* the warm structural rule */
+.nb-rule {
+  height: 1px;
+  background: var(--rule-warm);
+  border: 0;
+}
+
+/* engraved small-caps mono label */
+.nb-section-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted-foreground);
+  margin: 0 0 20px;
+}
+
+/* the operation grid — collapses when cramped */
+.nb-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 820px) {
+  .nb-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* WorkCard — matte surface, hairline warms to brass on hover */
+.nb-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--dur-base) var(--ease-heat),
+    background-color var(--dur-base) var(--ease-heat);
+}
+.nb-card:hover {
+  border-color: var(--rule-warm);
+  background: color-mix(in oklch, var(--surface) 94%, var(--ember));
+}
+
+.nb-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.nb-card__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 72;
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-lg);
+  line-height: 1.12;
+  letter-spacing: var(--tracking-tight);
+  color: var(--foreground);
+}
+.nb-card__body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-ui);
+  color: var(--muted-foreground);
+  flex: 1 0 auto;
+}
+.nb-card__chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.nb-card__links {
+  display: flex;
+  gap: 22px;
+  margin-top: 6px;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+/* tag / stack chip — instrument readout */
+.nb-chip {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+/* status badge — calm. positive = verdigris, complete = brass gleam.
+   (rubedo stays rationed: never multiplied across a card grid.) */
+.nb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 3px 8px;
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+.nb-badge--positive {
+  color: var(--positive);
+  border-color: color-mix(in oklch, var(--positive) 42%, transparent);
+}
+.nb-badge--positive::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.nb-badge--complete {
+  color: var(--brass);
+  border-color: color-mix(in oklch, var(--brass) 38%, transparent);
+}
+
+/* external link — mono uppercase, warms to brass */
+.nb-extlink {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  transition: color var(--dur-quick) var(--ease-heat);
+  -webkit-tap-highlight-color: transparent;
+}
+.nb-extlink:hover {
+  color: var(--brass);
+  text-decoration: none;
+}
+
+/* the settling — a clarified result easing into place. transform-only
+   so a frozen frame (print, reduced-motion) is always fully visible. */
+.nb-settle {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nb-settle {
+    animation: nb-settle var(--dur-settle) var(--ease-heat) both;
+  }
+  @keyframes nb-settle {
+    from {
+      transform: translateY(var(--settle-rise));
+    }
+    to {
+      transform: none;
+    }
+  }
+}
+
+/* ============================================================
+   ATHANOR LONG-FORM READING — the study at full measure.
+   Composes with Tailwind Typography's `.prose` (keeps `not-prose`
+   working for islands); `.nb-prose` re-skins it to the bench:
+   Spectral body at a 66ch measure, Fraunces heads, brass rules,
+   verdigris links, mono captions.
+   ============================================================ */
+.nb-prose {
+  /* re-point every Typography color hook at an Athanor token */
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-lead: var(--muted-foreground);
+  --tw-prose-links: var(--link);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--rule-warm);
+  --tw-prose-hr: var(--rule-warm);
+  --tw-prose-quotes: var(--muted-foreground);
+  --tw-prose-quote-borders: var(--rule-warm);
+  --tw-prose-captions: var(--muted-foreground);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: var(--surface);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+  --tw-prose-kbd: var(--foreground);
+
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-prose);
+  font-feature-settings: "onum" 1, "kern" 1, "liga" 1;
+  max-width: var(--reading-max);
+}
+
+/* lead paragraph — the first graf reads a touch larger, the standfirst */
+.nb-prose > p:first-of-type {
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.nb-prose :where(h2, h3, h4) {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-tight);
+  color: var(--foreground);
+}
+.nb-prose :where(h2) {
+  font-variation-settings: var(--fraunces-head);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  margin-top: 2em;
+  padding-top: 0.6em;
+  border-top: 1px solid var(--border);
+}
+.nb-prose :where(h3) {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+  margin-top: 1.6em;
+}
+.nb-prose :where(h4) {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  margin-top: 1.4em;
+}
+
+/* headings linked by rehype-autolink-headings — don't paint them as links */
+.nb-prose :where(h2, h3, h4) a {
+  color: inherit;
+  text-decoration: none;
+  font-variation-settings: inherit;
+}
+
+.nb-prose :where(a) {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  text-decoration-color: color-mix(in oklch, var(--link) 55%, transparent);
+  transition: text-decoration-color var(--dur-quick) var(--ease-heat),
+    color var(--dur-quick) var(--ease-heat);
+}
+.nb-prose :where(a):hover {
+  text-decoration-color: var(--link);
+}
+
+.nb-prose :where(blockquote) {
+  border-left: var(--rule-width-bold) solid var(--rule-warm);
+  font-style: italic;
+  color: var(--muted-foreground);
+  font-weight: var(--weight-regular);
+}
+.nb-prose :where(blockquote p:first-of-type)::before,
+.nb-prose :where(blockquote p:last-of-type)::after {
+  content: "";
+}
+
+.nb-prose :where(li)::marker {
+  color: var(--rule-warm);
+}
+
+.nb-prose :where(code):not(:where(pre code)) {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  font-weight: var(--weight-regular);
+  background: var(--muted);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  border: var(--hairline) solid var(--border);
+}
+.nb-prose :where(code):not(:where(pre code))::before,
+.nb-prose :where(code):not(:where(pre code))::after {
+  content: none;
+}
+
+.nb-prose :where(table) {
+  font-size: var(--text-sm);
+}
+.nb-prose :where(th) {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--muted-foreground);
+  font-weight: var(--weight-medium);
+}
+.nb-prose :where(td) {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ---- Figure / plate — the frame around a live diagram or chart ---- */
+.nb-figure {
+  margin: var(--space-7) 0;
+  /* break out wider than the reading measure, stay centered on it */
+  width: min(54rem, 92vw);
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.nb-figure__frame {
+  /* the field — raised surface nodes/boxes sit on it with contrast */
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.nb-figure__caption {
+  display: flex;
+  gap: 0.6em;
+  margin-top: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.nb-figure__num {
+  flex: none;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--brass);
+}
+.nb-figure__caption-body {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: var(--text-sm);
+}
+
+/* ---- Case-study chrome ---- */
+.nb-article {
+  max-width: var(--reading-max);
+  margin: 0 auto;
+  padding-inline: var(--page-gutter);
+}
+.nb-article__eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--muted-foreground);
+}
+.nb-article__title {
+  margin: 0.5em 0 0;
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 110;
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--foreground);
+}
+.nb-article__lead {
+  margin: 0.7em 0 0;
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.nb-article__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: var(--space-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+}
+.nb-article__meta-sep {
+  color: var(--brass);
+}
+
+/* ============================================================
+   rehype-pretty-code (Shiki) — respect light/dark themes
+   ============================================================ */
 html code[data-theme],
 html code[data-theme] span {
-  color: var(--shiki-light);
+  color: var(--shiki-dark);
 }
-@media (prefers-color-scheme: dark) {
-  html code[data-theme],
-  html code[data-theme] span {
-    color: var(--shiki-dark);
-  }
+:root[data-theme="light"] code[data-theme],
+:root[data-theme="light"] code[data-theme] span {
+  color: var(--shiki-light);
 }
 pre[data-theme] {
   padding: 1rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
+  background: var(--surface);
   overflow-x: auto;
 }
 
-/* Command palette (cmdk) — minimal functional styling */
+/* ============================================================
+   React Flow (@xyflow) — the Athanor instrument bench.
+   Hairline edges; streaming edges warm to brass; controls match
+   the matte console. Node styling is inline in athanor-flow.tsx.
+   ============================================================ */
+.nb-flow .react-flow__edge-path {
+  stroke: var(--rule-cool);
+  stroke-width: 1.5;
+}
+.nb-flow .react-flow__edge.animated .react-flow__edge-path {
+  stroke: var(--brass);
+}
+.nb-flow .react-flow__edge-text {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.nb-flow .react-flow__edge-textbg {
+  fill: var(--surface);
+}
+.nb-flow .react-flow__controls {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+}
+.nb-flow .react-flow__controls-button {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.nb-flow .react-flow__controls-button svg {
+  fill: var(--muted-foreground);
+}
+.nb-flow .react-flow__controls-button:hover {
+  background: var(--ember-wash);
+}
+/* light-mode dot grid (the JS-set color is tuned for the dark field) */
+:root[data-theme="light"] .nb-flow .react-flow__background circle {
+  fill: #d4c9b2 !important;
+}
+
+/* ============================================================
+   Command palette (cmdk) — the instrument console.
+   ============================================================ */
 [cmdk-overlay] {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: color-mix(in oklch, var(--umbra) 72%, transparent);
+  backdrop-filter: blur(2px);
   z-index: 50;
 }
 [cmdk-dialog] {
@@ -81,15 +764,16 @@ pre[data-theme] {
   width: min(640px, 92vw);
 }
 [cmdk-root] {
-  background: var(--background);
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-float);
 }
 [cmdk-input] {
   width: 100%;
   padding: 16px;
+  font-family: var(--font-body);
   font-size: 15px;
   background: transparent;
   border: none;
@@ -104,18 +788,21 @@ pre[data-theme] {
 }
 [cmdk-item] {
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 [cmdk-item][data-selected="true"] {
-  background: var(--muted);
+  background: var(--ember-wash);
 }
 [cmdk-group-heading] {
-  padding: 8px 12px 4px;
-  font-size: 12px;
+  padding: 10px 12px 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
   color: var(--muted-foreground);
 }
 [cmdk-empty] {

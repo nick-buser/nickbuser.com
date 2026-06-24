@@ -19,6 +19,8 @@ export const site = {
   ],
   socials: {
     github: "https://github.com/nick-buser",
+    linkedin: "https://www.linkedin.com/in/nick-buser-26bb99154/",
+    email: "mailto:nicholas.buser@gmail.com",
   },
 } as const;
 
