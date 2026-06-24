@@ -41,6 +41,8 @@ export default async function WorkPage({
   ].filter(Boolean) as string[];
 
   return (
+    <>
+    <ReadingNav />
     <div className="nb-article nb-settle" style={{ padding: "56px 0 96px" }}>
       <Link href="/" className="nb-extlink">
         ← Work
@@ -102,8 +104,7 @@ export default async function WorkPage({
       <article className="prose nb-prose">
         <Mdx source={doc.content} />
       </article>
-
-      <ReadingNav />
     </div>
+    </>
   );
 }
