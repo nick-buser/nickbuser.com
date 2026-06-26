@@ -7,6 +7,7 @@ import { Providers } from "@/app/providers";
 import type { SearchItem } from "@/components/command-palette";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { Analytics } from "@vercel/analytics/next";
 
 /* Athanor type core: Fraunces (display, incised — opsz/SOFT/WONK axes),
    Spectral (body & long-form serif), JetBrains Mono (the readout voice). */
@@ -76,6 +77,7 @@ export default function RootLayout({
           <main className="flex-1">{children}</main>
           <SiteFooter />
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
