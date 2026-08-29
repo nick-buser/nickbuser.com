@@ -36,8 +36,14 @@ G2 PR #2, F2 PR #3, G8 PR #4). Published tarball contains
 
 ### Registry wiring (identical in every consumer)
 
-`.npmrc` at the repo root — the scope must be pointed at Gitea or install
-will look for `@atlas/tokens` on npmjs.com and fail:
+`.npmrc` — **repo root. This repo has a root `package.json` + `pnpm-workspace.yaml` (Next 16), so a root-level `.npmrc` is read. Verified 2026-08-29.**
+
+The scope must be pointed at Gitea or install looks for `@atlas/tokens` on
+npmjs.com and fails with `ERR_PNPM_FETCH_404 GET
+https://registry.npmjs.org/@atlas%2Ftokens`. pnpm resolves config from the
+project dir and the workspace root only; a repo whose root is *not* a pnpm
+project never sees a root-level `.npmrc`. Verified per repo, not assumed —
+G3a hit exactly this (memory-palace-app's root is a Python project):
 
 ```
 @atlas:registry=https://git.bittern-chameleon.dev/api/packages/nick-b/npm/
