@@ -10,6 +10,11 @@ import {
   FirmwareProvenanceFlow,
 } from "@/components/islands/homelab-diagrams";
 import {
+  GitopsTopology,
+  GitopsDeliveryFlow,
+  AppOfAppsTree,
+} from "@/components/islands/gitops-diagrams";
+import {
   OutboxTxnSvg,
   DeviceSinksSvg,
   VizPipelineSvg,
@@ -47,6 +52,9 @@ export const mdxComponents = {
   OutboxFlow,
   ObservabilityFlow,
   FirmwareProvenanceFlow,
+  GitopsTopology,
+  GitopsDeliveryFlow,
+  AppOfAppsTree,
   OutboxTxnSvg,
   DeviceSinksSvg,
   VizPipelineSvg,
