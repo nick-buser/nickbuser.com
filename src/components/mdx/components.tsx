@@ -26,6 +26,7 @@ import {
   VizPipelineSvg,
 } from "@/components/diagrams/homelab-svgs";
 import { Callout } from "@/components/mdx/callout";
+import { Incident, Incidents } from "@/components/mdx/incident";
 import { Figure } from "@/components/mdx/figure";
 
 function Anchor({ href = "", ...props }: ComponentProps<"a">) {
@@ -51,6 +52,8 @@ export const mdxComponents = {
   a: Anchor,
   Callout,
   Figure,
+  Incident,
+  Incidents,
   D3BarChart,
   FlowDiagram,
   HomelabTopology,
