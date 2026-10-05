@@ -1,104 +1,80 @@
 ---
 title: "The Homelab"
-description: "A personal lab on my own hardware for learning platform engineering on apps I actually use. App delivery is moving to GitOps: CI builds an image, a bot commits its tag to git, and Argo CD makes a k3s cluster match the repository."
+description: "A personal platform-engineering lab on my own hardware. Apps ship through GitOps onto a k3s cluster, services publish events through a transactional outbox, and the whole setup lives in git."
 date: 2026-10-05
 summary: "A personal platform-engineering lab: push an app and it builds, ships through GitOps to k3s, and serves on the tailnet."
 role: "Build & operation"
 timeframe: "Ongoing"
 stack:
-  ["k3s", "argo cd", "helm", "woodpecker", "harbor", "kyverno", "sops", "velero", "opentelemetry", "caddy", "proxmox", "terraform", "ansible"]
+  ["k3s", "argo cd", "helm", "woodpecker", "harbor", "kyverno", "sops", "velero", "redpanda", "debezium", "opentelemetry", "caddy", "proxmox", "terraform", "ansible"]
 featured: true
-tags: ["infrastructure", "platform", "gitops", "kubernetes"]
-changes: "Rewritten around the GitOps path on k3s and Argo CD. The first version described the Dokploy path, which still serves most of the personal apps."
+tags: ["infrastructure", "platform", "gitops", "kubernetes", "streaming"]
+changes: "Rewritten around GitOps on k3s and Argo CD, which most apps have moved to from Dokploy."
 ---
 
-The homelab is a personal lab: a few second-hand machines in my apartment that
-I use to learn platform engineering. It runs applications I actually use —
-static knowledge sites, small stateful web apps, and a handful of GPU model
-servers — and those real tenants are the point.
+The homelab is a few second-hand machines in my apartment that I use to learn
+platform engineering. It runs apps I actually use: static knowledge sites,
+small web apps with their own databases, and a few GPU model servers, which the
+[ML orchestration writeup](/work/ml-orchestration-lab) covers.
 
-The first version of this writeup, from June, described how apps shipped then.
-A push went to the forge, CI built an image, and a deploy call told Dokploy to
-run it. That path still serves most of my personal apps. Since late June a
-second path has grown beside it: GitOps on a k3s cluster, where Argo CD keeps
-the cluster matching a git repository. Static sites and several web apps have
-moved onto it, and the GPU model servers followed. This version is about that
-path — how a push becomes a running pod, what checks the change on the way,
-what broke as real apps moved onto it, and what is still missing.
-
-<Callout type="note">
-  The June version is kept as it was published, under **Versions** at the top
-  of this page. It also covers the shared Postgres, the event log and the
-  firmware bench, which this version doesn't revisit.
-</Callout>
-
-## Why a cluster at all
-
-The cluster was stood up to learn GitOps, Helm and Kubernetes. The homelab does
-not operationally need Kubernetes, and the repository's README says so. What
-changed over the summer is the tenants. The first app moved off Dokploy in July.
-A batch of static sites followed in September, then stateful apps, and at the
-turn of October the GPU model servers left their own containers for the
-cluster. Each move tested something the demo apps had not, and most of this
-writeup is about what those moves taught the platform.
+Apps ship through GitOps. CI builds an image, a controller commits the new image
+tag to a git repository, and Argo CD applies that repository to a k3s cluster.
+The cluster went up in June as a way to learn GitOps, Helm and Kubernetes, and
+the lab doesn't strictly need Kubernetes. The apps started out on Dokploy, a
+Docker Swarm PaaS, and most of them have since moved to the cluster. The
+migration [gets its own writeup](/work/dokploy-to-gitops).
 
 ## The shape of it
 
 Three machines hold the lab, split by what they keep. A NAS host holds
 everything durable: Postgres, the Garage S3 object store, and NFS shares. A
-mini-PC runs the always-on services as LXC containers — the Git forge, the
-Caddy proxy, DNS, and SigNoz for telemetry — plus the Dokploy VM. A GPU tower
-carries the k3s cluster and the CI server.
+mini-PC runs the always-on services as LXC containers: the Git forge, the Caddy
+proxy, DNS, and SigNoz for telemetry. A GPU tower carries the k3s cluster and
+the CI server.
 
-<Figure num="Fig. 1" caption="Two k3s nodes on one tower, behind the same proxy as everything else. Caddy terminates TLS and hands plain HTTP to Traefik. Volumes and object storage live on the NAS, off the cluster.">
+<Figure num="Fig. 1" caption="Two k3s nodes on one tower, behind the same proxy as everything else. Caddy terminates TLS and hands plain HTTP to Traefik. Volumes and object storage live on the NAS.">
   <GitopsTopology />
 </Figure>
 
-The cluster has two nodes, and both run on the tower. The server is a VM that
-holds the control plane and also runs ordinary workloads. The agent is an
-unprivileged LXC container, so the tower's GPU can be shared between it and the
-tower's other containers. A VM would need the card passed through, and
-passthrough gives the whole card to that one VM. The container has a cost: an
-unprivileged LXC cannot mount NFS, and it cannot raise certain kernel socket
-limits. The socket limit caused one of the incidents below, and the NFS limit
-turned up in the restore drill. Workloads that need an NFS volume select a node
-by a capability label, `homelab/nfs-capable`, and land on the VM.
+The cluster has two nodes, both on the tower. The server is a VM that runs the
+control plane and ordinary workloads. The agent is an unprivileged LXC
+container, which lets the tower's GPU be shared between it and the tower's
+other containers. A VM would need the card passed through, and passthrough
+hands the whole card to that one VM. The catch is that an unprivileged LXC
+can't mount NFS or raise some kernel socket limits, and both of those caused
+problems described below.
 
-The cluster keeps as little state as it can. Harbor, the container registry,
-runs in the cluster with its image layers in Garage and its metadata in the NAS
-Postgres. Velero writes backups to Garage. The OpenTelemetry collector exports
-to SigNoz on the mini-PC. The stated reason is that image data, backups and
-telemetry should outlive anything that happens to the cluster. The cluster has
-also moved once: after a memory incident in September, the control-plane VM
-moved to the tower by backup and restore the same day, and every application
-came back identical to the record taken before the move.
+Harbor, the container registry, runs in the cluster but keeps its image layers
+in Garage and its metadata in the NAS Postgres. Velero writes backups to Garage,
+and the OpenTelemetry collector exports to SigNoz on the mini-PC. Keeping that
+state off the cluster is deliberate, so losing the cluster doesn't lose it. The
+control-plane VM has moved hosts once, by backup and restore, and every app came
+back the same as before the move.
 
-Terraform still creates every VM and container, and Ansible still configures
-them. Ansible also installs k3s and Argo CD, once. After that bootstrap,
-everything inside the cluster comes from one git repository.
+Terraform creates every VM and container, and Ansible configures them. Ansible
+also installs k3s and Argo CD, once. After that, everything inside the cluster
+comes from one git repository.
 
 ## From push to running
 
-<Figure num="Fig. 2" caption="The delivery loop. CI stops at a pushed image. A controller reads the registry and commits the new tag to git, and Argo CD applies what git says.">
+<Figure num="Fig. 2" caption="The delivery loop. CI pushes an image. A controller reads the registry and commits the new tag to git, and Argo CD applies what git says.">
   <GitopsDeliveryFlow />
 </Figure>
 
-The path has five hops, and each does one job.
+**Build.** A push to an app's `main` branch on the forge triggers Woodpecker,
+which builds the image with buildx, tags it from the commit, and pushes it to
+Harbor using a robot account that only CI uses. Most pipelines tag images
+`main-<sha8>`, and older ones use the bare hash. Both are immutable. Some
+pipelines also push a moving `prod-latest` tag, which nothing deploys.
 
-**Build.** A push to an app's `main` branch on the forge triggers Woodpecker.
-The pipeline builds the image with buildx, tags it from the commit, and pushes
-it to Harbor with a robot account kept for CI. Most pipelines use `main-<sha8>`,
-and older ones use the bare hash. Either tag is immutable. Some pipelines also
-push a moving `prod-latest` tag, and nothing deploys it.
+**Registry.** Harbor scans each image as it arrives. It also acts as a
+pull-through cache for Docker Hub and GitHub's registry, so apps' third-party
+images come through it too.
 
-**Registry.** Harbor scans each image as it arrives. It also fronts Docker Hub
-and GitHub's registry as pull-through caches, so tenants' third-party images
-come through it too.
-
-**Tag to git.** Argo CD Image Updater polls Harbor every couple of minutes with
-a pull-only robot account, so the controller that rewrites tags can't push or
-delete an image. The Application of each app it watches carries annotations
-that say which image to watch, which tags count, and where to write the answer:
+**Tag to git.** Argo CD Image Updater polls Harbor every couple of minutes,
+using a pull-only robot account, so the controller that rewrites tags can't push
+or delete an image. Each app it watches has annotations on its Application that
+say which image to follow, which tags count, and where to write the new tag:
 
 ```yaml
 # apps/<app>.yaml (abridged)
@@ -114,279 +90,289 @@ spec:
     path: charts/<app>
 ```
 
-The strategy is `newest-build` because a commit hash has no version order. The
-regex admits only the immutable tags, which keeps `prod-latest` out. When a
-newer build appears, the controller commits the new tag to
-`charts/<app>/values.yaml` on the GitOps repo's `main`, with a message like
-`build: automatic update of <app>`. The write-back target is resolved against
-the chart's directory. The first configuration gave a path from the repo root,
-so the very first write-back created `charts/<app>/charts/<app>/values.yaml`.
-The controller is pinned to the 0.14 line, and the pin's comment records why:
-the 1.x rewrite ignores these annotations and does nothing.
+Commit hashes have no version order, so the strategy is `newest-build`. The tag
+regex only matches immutable tags, which keeps `prod-latest` out. When a newer
+build shows up, the controller commits the new tag to `charts/<app>/values.yaml`
+on the GitOps repo's `main` branch, with a message like
+`build: automatic update of <app>`. The write-back path is relative to the
+chart's directory, which the first configuration got wrong: the very first
+automated commit created `charts/<app>/charts/<app>/values.yaml`. The controller
+is pinned to the 0.14 line because the 1.x rewrite ignores these annotations
+without any error.
 
-**Sync.** Argo CD checks the repo every three minutes, sees the new tag, renders
-the chart with Helm, and applies the difference. There is no webhook from the
-forge to Argo CD yet, so two polls set the pace, and a push reaches the cluster
-in minutes.
+**Sync.** Argo CD polls the repo every three minutes, sees the new tag, renders
+the chart with Helm, and applies the difference. There's no webhook from the
+forge to Argo CD yet, so a push takes a few minutes to reach the cluster.
 
 **Serve.** Caddy holds a wildcard for the cluster's hostnames and forwards to
-Traefik on a fixed node port. Traefik routes by Host header to the app's
-Service. Caddy is the only TLS hop. Internal `.lab` names get certificates from
+Traefik on a fixed node port, and Traefik routes by Host header to the app's
+Service. Caddy is the only TLS hop. Internal `.lab` names use certificates from
 Caddy's own certificate authority, and public names get Let's Encrypt
-certificates over a Cloudflare DNS-01 challenge. The public DNS records point
-at Caddy's address on the tailnet, so a public name resolves from anywhere and
-is reachable only from the tailnet or the home LAN. No port is forwarded to the
-lab. Because the wildcards already cover the cluster's hostnames, a new app on
+certificates through a Cloudflare DNS-01 challenge. The public DNS records point
+at Caddy's tailnet address, so a public name resolves anywhere but only connects
+from the tailnet or the home LAN. No port is forwarded to the lab. A new app on
 a cluster hostname needs no DNS, certificate or proxy change.
 
-The phase plan records why a controller writes the tag. CI's job ends at a
-built image. Deciding what runs belongs on the cluster side, with a controller
-that can read the registry and write git. As a result, the git history of each
-`values.yaml` is that app's deploy log. For every app Image Updater watches, a
-deploy is a bot commit naming the old and new tag, and a rollback is
-`git revert` of that commit. Pinned third-party images, such as the model
-servers and Harbor itself, move by ordinary reviewed commits.
+CI's only job is to build and push the image. Deciding what runs happens on the
+cluster side, by a controller that reads the registry and writes git. That
+makes the git history of each app's `values.yaml` its deploy log. For an app the
+controller watches, every deploy is a commit naming the old and new tag, and
+rolling back is a `git revert`. Pinned third-party images, such as the model servers and Harbor
+itself, are updated by ordinary reviewed commits.
 
-## One repository describes the cluster
+## One repository for the cluster
 
-<Figure num="Fig. 3" caption="The GitOps repo. The root is applied once. After that, adding a file under infra/ or apps/ is how anything enters the cluster. Charts and encrypted secrets sit outside the recursed trees, so the app-of-apps never applies a chart's raw templates.">
+<Figure num="Fig. 3" caption="The GitOps repo. The root is applied once at bootstrap. After that, adding a file under infra/ or apps/ is how anything enters the cluster. Charts and encrypted secrets sit outside the recursed directories, so the app-of-apps never applies a chart's raw templates.">
   <AppOfAppsTree />
 </Figure>
 
-The bootstrap applies one root, and the root lists two Argo CD Applications,
-`infra` and `apps`. Each recurses a directory of child Applications with
-pruning and self-heal on. Adding a platform component means adding a file to
-`infra/`. Adding a tenant means adding a file to `apps/`. The root never
+The bootstrap applies one root, which lists two Argo CD Applications, `infra`
+and `apps`. Each one recurses a directory of child Applications, with pruning
+and self-heal on. Adding a platform component means adding a file to `infra/`,
+and adding an app means adding a file to `apps/`. The root itself never
 changes.
 
-Upstream charts come in as native Helm sources at an explicit chart version,
-never a range or `HEAD`, so the chart under a sync never changes. Charts for
-the lab's own apps live in `charts/<app>/`, outside the recursed `apps/`
-directory. If they sat inside it, the app-of-apps would apply the chart's raw
-templates as manifests. The CI gate checks that every top-level file in `apps/`
-and `infra/` is an Application. Encrypted secrets, Kyverno policies and
-namespaces sit outside the trees for the same reason.
+Upstream charts come in as native Helm sources pinned to an exact chart version,
+never a range or `HEAD`. Charts for the lab's own apps live in `charts/<app>/`,
+outside the recursed `apps/` directory. If they were inside it, the app-of-apps
+would apply the chart's raw templates as manifests. The CI gate checks that
+every top-level file in `apps/` and `infra/` is an Application. Encrypted
+secrets, Kyverno policies and namespaces sit outside the recursed directories
+for the same reason.
 
-Many tenant charts are thin wrappers around three shared charts: one for static
-sites, one for a stateful web service with an optional migration Job, volume
-and service account, and one for a batch job that is suspended by default. The
-shared charts are deliberately ordinary application charts. Image Updater
-writes to a values path such as `static-spa.image.tag`, and under a Helm
-library chart no template would read that key. The app would keep running its
-old image while git showed the new tag.
+Many app charts are thin wrappers around three shared charts: one for static
+sites, one for a stateful web service with an optional migration Job, volume and
+service account, and one for a batch job that's suspended by default. The
+shared charts are ordinary application charts on purpose. Image Updater writes
+to a values path like `static-spa.image.tag`, and in a Helm library chart no
+template would read that key. The app would keep running its old image while git
+showed the new tag.
 
-Inside a chart, sync waves order the work. One stateful app brings up its
-database pods in the first wave, runs its migration Job in the second, and
-starts the app in the third. The migration is a Sync hook. A PreSync hook
-deadlocks a first install, and the CI gate pins the hook phase so that mistake
-can't come back. A lint also keeps every Ingress in its chart's last wave, a
-rule that came out of an incident described below.
+Inside a chart, sync waves set the order. One stateful app brings up its
+database pods first, then runs its migration Job, then starts the app. The migration runs
+as a Sync hook, because a PreSync hook deadlocks on a first install, and the CI
+gate pins the hook phase so it can't drift back. A lint also keeps every Ingress
+in its chart's last wave, for a reason covered below.
 
-A new tenant needs an Application with its Image Updater annotations, a wrapper
-chart, its secrets, its namespace added to the policies, and a pipeline in its
-own repo. The onboarding command generates the chart, the Application and the
-routing entry. It never commits, and it creates only files that don't exist yet
-unless forced. That rule protects `values.yaml`, which the command shares with
-Image Updater: regenerating it would replace the live tag with whatever the
-registry returned at that moment, and onboarding an app a second time could
-roll it back. Its test requires the generated Application and `Chart.yaml` to match a
-hand-written pilot byte for byte, and a run against a repo that already has
-the pilot must change nothing.
+A new app needs an Application with its Image Updater annotations, a wrapper
+chart, its secrets, its namespace added to the policies, and a CI pipeline in
+its own repo. An onboarding command generates the chart, the Application and the
+routing entry. It never commits, and it only creates files that don't exist yet
+unless it's forced. That protects `values.yaml`, which it shares with Image
+Updater: regenerating that file would replace the live tag with whatever the
+registry returned at that moment, so onboarding an app a second time could roll
+it back. Its test checks that the generated Application and `Chart.yaml` match a
+hand-written pilot byte for byte, and that a run against a repo that already has
+the pilot changes nothing.
 
 ## Secrets in a repository anyone could read
 
-The GitOps repo is treated as readable by anyone, so it holds no plaintext
+The GitOps repo is treated as readable by anyone, so it never holds a plaintext
 credential. Secrets are committed encrypted with SOPS to an age key. Only the
-`data` and `stringData` fields are ciphertext, so the metadata stays readable
-and a diff still shows which secret changed. A plugin sidecar on Argo CD's repo
-server decrypts each `*.sops.yaml` file while it renders the Application.
+`data` and `stringData` fields are encrypted, so the metadata stays readable and
+a diff still shows which secret changed. A plugin sidecar on Argo CD's repo
+server decrypts each `*.sops.yaml` file as it renders the Application.
 
-The age private key's master copy lives in the infrastructure repo's Ansible
-Vault, and the bootstrap installs it in the cluster as a Secret. That key and
-the credential Argo CD uses to clone the repo are the two things the bootstrap
-installs directly, because both have to exist before Argo CD can read the
-repo. The command that writes a tenant's secret file renders the values from
-the vault in memory and pipes them straight into `sops --encrypt`, so plaintext
-never touches the disk.
+The master copy of the age private key lives in the infrastructure repo's
+Ansible Vault, and the bootstrap installs it in the cluster as a Secret. That
+key and the credential Argo CD uses to clone the repo are the only two things
+the bootstrap installs directly, since both have to exist before Argo CD can
+read the repo. The command that writes an app's secret file renders the values
+from the vault in memory and pipes them straight into `sops --encrypt`, so
+plaintext never touches the disk.
 
-The phase plan considered two alternatives and recorded why it passed on them.
-Sealed Secrets would add a second, Kubernetes-only root of trust. The External
-Secrets Operator with a Vault or Infisical backend would add a service to run,
-monitor and back up. The chosen design has a known cost: rotating a secret
-means writing it in two places, and the runbook for that is not written yet.
+Sealed Secrets was ruled out because it adds a second, Kubernetes-only root of
+trust. The External Secrets Operator, backed by Vault or Infisical, was ruled
+out because it's another service to run, monitor and back up. The cost of the
+current setup is that rotating a secret means updating it in two places, and
+there's no runbook for that yet.
 
 ## Checks before and after a commit
 
-**The CI gate.** Every push and pull request to the GitOps repo runs a
-Woodpecker pipeline that pins Helm, the Kyverno CLI and yq by version and
-checksum. Helm is held on 3.x because that is what Argo CD renders with, and a
-gate on a different major version can pass output that never ships. The gate
-runs in CI against a commit. The pipeline's header records why: the earlier
-plan copied a working tree to a box and ran the checks over SSH, and a check of
-state that exists in no commit can't ratify anything.
+**The CI gate.** Every push and pull request to the GitOps repo runs a Woodpecker
+pipeline with Helm, the Kyverno CLI and yq pinned by version and checksum. Helm
+stays on 3.x because that's what Argo CD renders with, and a gate on a different
+major version could pass output that never ships. The gate runs in CI against a
+commit, so what it checked is exactly what's in git.
 
 The main step renders every chart, every values overlay and every shared-chart
-fixture. Then it:
+fixture, then:
 
-- renders each one twice and compares the bytes, a check added after Harbor's
-  chart turned out to generate fresh random secrets on every render, which
+- renders each one twice and compares the bytes. This was added after Harbor's
+  chart turned out to generate new random secrets on every render, which
   restarted Harbor on unrelated commits;
-- runs the Kyverno policies against the output, and reads what blocks from each
+- runs the Kyverno policies against the output, taking what blocks from each
   policy's own declared action;
 - fails on a `:latest` or untagged image, on missing resource requests, and on
-  a credential embedded in a URL, which it masks before printing to the log;
+  a credential embedded in a URL, masking the match before it prints to the log;
 - keeps every Ingress in its chart's last sync wave;
-- requires a set of deliberately bad fixtures to be rejected. The repo's own
-  rules put it this way: a gate proved only to pass has not been proved to
-  work.
+- requires a set of deliberately broken fixtures to fail, to show the gate
+  actually catches what it's meant to.
 
-The gate has one gap that matters. Image Updater's commits, and small
-bookkeeping commits, go straight to `main`. For those, the gate checks a commit
-that Argo CD may already have applied, and admission control in the cluster is
-the backstop.
+Image Updater's commits and small bookkeeping commits go straight to `main`, so
+for those the gate runs after Argo CD may already have applied the change.
+Admission control in the cluster covers that gap.
 
-**Admission.** Kyverno runs five cluster policies. Three audit cluster-wide and
-enforce in the tenant namespaces they list:
+**Admission.** Kyverno runs five cluster policies. Three of them audit
+cluster-wide and enforce in the app namespaces they list:
 
 - an image must carry a tag, and the tag can't be `latest`;
 - a container must set CPU and memory requests and a memory limit. CPU limits
   are left out on purpose, to avoid throttling;
-- images must come from a short list of approved registries. This one moved to
-  enforcing once Harbor's pull-through caches gave every tenant image an
+- images must come from a short list of approved registries. This one switched
+  to enforcing once Harbor's pull-through caches gave every app image an
   approved source.
 
-A fourth audits pod probes and enforces nothing. The fifth enforces in the GPU
-workflow namespace: a pod there that requests a GPU must carry the Kueue queue
-label and the annotation that the approved GPU step templates stamp on it.
+A fourth audits pod probes without enforcing anything. The fifth enforces in the
+GPU workflow namespace: a pod there that requests a GPU must carry the Kueue
+queue label and the annotation that the approved GPU step templates add.
 
 ## Seeing the system
 
-The OpenTelemetry collector runs in the cluster from SigNoz's Kubernetes chart.
-It exports cluster and kubelet metrics, Kubernetes events, container logs and
+The OpenTelemetry collector runs in the cluster from SigNoz's Kubernetes chart
+and sends cluster and kubelet metrics, Kubernetes events, container logs and
 host metrics to SigNoz, which runs outside the cluster. A scrape configuration
-adds the model servers' metrics. Alert rules live in the repo as JSON, and the
-memory incident below added alerts on control-plane memory and on Kueue's
-availability. Argo CD's own notifications are not configured yet.
+adds the model servers' metrics. Alert rules live in the repo as JSON, including
+alerts on control-plane memory and on Kueue's availability that came out of
+one of the incidents below. Argo CD's own notifications aren't set up yet.
 
 ## Canaries and backups
 
-Argo Rollouts and Velero both run, and both are thinly exercised so far.
+Argo Rollouts and Velero are both installed, and neither has been exercised
+much yet.
 
-The Rollouts controller is installed, and one demo app is a canary. Its rollout
-steps through 25, 50 and 75 percent with a minute's pause at each, then
-promotes to 100. An analysis Job queries SigNoz for 5xx lines in the app's logs
-and aborts the rollout above a threshold. Tenants still roll out as plain Deployments. The
-analysis also fails open today: if SigNoz is unreachable, the query counts zero
-errors and the canary proceeds. That needs fixing before a real tenant depends
-on it.
+One demo app runs as a canary. Its rollout steps through 25, 50 and 75 percent
+with a minute's pause at each, then goes to 100. An analysis Job queries SigNoz
+for 5xx lines in the app's logs and aborts the rollout above a threshold. The
+real apps still roll out as plain Deployments. The analysis also fails open
+right now: if SigNoz is unreachable, the query counts zero errors and the canary
+continues. That has to be fixed before a real app depends on it.
 
 A nightly Velero schedule backs up to Garage on the NAS and keeps seven days.
 The NFS storage class has no snapshot support, so volumes are backed up at the
-file level with Kopia. The schedule itself is GitOps state. A restore has been
-drilled once, in June: a small stamp file on a demo volume, the namespace
-deleted, and the stamp restored identical into a fresh volume. The drill also
-found that the LXC node can't mount NFS. No real tenant has been restored yet.
-High availability is an explicit non-goal, and the k3s datastore is a single
-SQLite server.
+file level with Kopia. The schedule is itself in the GitOps repo. A restore has
+been tested once: a small stamp file on a demo volume, the namespace deleted,
+and the stamp restored intact into a new volume. No real app has been restored
+yet. High availability isn't a goal, and the k3s datastore is a single SQLite
+server.
 
 ## What broke
 
-The repo keeps an incident library for the migration, written so it can be
-studied from the record later. Four entries show the platform best.
+Each of these got a write-up in the repo when it happened.
 
-**kube-proxy froze for 34 hours.** Every image pull through Harbor started
-returning 502. The registry itself was healthy. The ticket assumed the failing
-node had too many rules, and measurement inverted that: the healthy VM node
-carried more. The cause was on the LXC node, and once the right thing was
-measured the diagnosis took minutes. `iptables-nft` sends its whole ruleset as
-one netlink message and grows the socket buffer to fit with `SO_SNDBUFFORCE`,
-which needs `CAP_NET_ADMIN` in the initial user namespace. An unprivileged container can never hold that. Once the
-ruleset outgrew the default buffer, kube-proxy stopped writing rules, and the
-node kept routing with its last good map. Harbor's internal hop pointed at a
-pod IP that no longer existed. The fix raises the default socket buffer size on
-the LXC host, as code. The first attempt raised the maximum instead and changed
-nothing. It stays in the history on purpose, because a fix that changes nothing
-has disproved its own mechanism.
+<Incidents>
+<Incident title="Image pulls failed for a day and a half">
 
-**No app with an Ingress ever reported Healthy.** Until a fix on September 10,
-every Application that carried an Ingress sat in Progressing. Traefik copies
-load-balancer status onto Ingresses from its published Service, and a NodePort
-Service has none to copy. Setting the ingress endpoint's hostname explicitly
-gave the Ingresses a status, and Argo CD's health became truthful. Before that
-was understood, one tenant never started a pod, because its Deployment waited
-in a sync wave behind an Ingress that could never go Healthy. The rule that
-keeps Ingresses in the last wave came from that, and it stayed after the root
-cause was fixed.
+Every image pull through Harbor started returning 502, while Harbor itself was
+healthy. The ticket assumed the failing node had too many iptables rules, but
+the healthy VM node turned out to have more. Once the right thing was measured,
+the diagnosis took minutes.
 
-**Moved apps returned 404 on old bookmarks.** Moving an app from Dokploy to the
-cluster spans two repos and two moments. The GitOps change gives the app an
-Ingress when it merges, and Caddy starts sending the app's old hostname to
-Traefik at its next playbook run. Traefik answers only for hostnames an Ingress
-claims. The first moved app's chart claimed only its new cluster hostname, so
-once Caddy re-rendered, bookmarks on the old hostname reached a Traefik with no
-route for them and returned 404. The onboarding command now puts both hostname
-families in every Ingress, so the safe order no longer depends on someone
-remembering it. The lasting lesson was about probes: a `curl` that returns 200
-doesn't say which backend answered. The check that works requests a path unique
-to the new deployment and looks for it in the pod's log.
+The problem was on the LXC node. `iptables-nft` sends its whole ruleset as one
+netlink message and grows the socket buffer to fit using `SO_SNDBUFFORCE`, which
+needs `CAP_NET_ADMIN` in the initial user namespace. An unprivileged container
+can never have that. Once the ruleset outgrew the default buffer, kube-proxy
+stopped writing rules, and the node kept routing with its last good set. Harbor's
+internal hop pointed at a pod IP that no longer existed.
 
-**The control plane ran out of memory.** In late September the server VM had
-8 GB and no swap, and it ran the API server, its datastore and Argo CD with all
-of its Applications. During a drill, Argo CD's application controller grew from
-833 MB to 1.2 GB in thirteen minutes, and the node began to thrash. The API
-server slowed and stayed up, the worst case for everything that depends on it.
-Kueue, the batch scheduler for the GPU work, ran on the other node with memory
-to spare. It could not start against the struggling API server, so its liveness
-probe kept killing it. Kueue admits pods through webhooks that fail closed, and
-while it was down no new pod could be created in its namespaces, including the
-drill's own cleanup step. Restarting the application controller recovered the
-node within a minute. The follow-up actions all closed within two days: the VM
-moved to the tower with 16 GB, Argo CD got
-memory limits, routine hard refreshes stopped, memory alerts went in, a cleanup
-path that doesn't depend on admission was added, and Kueue's pod webhooks were
-scoped to pods that ask for a queue. A drill then showed an ordinary pod being
-created while Kueue was down, and a pod carrying a queue label, as GPU work
-does, still being refused.
+The fix raises the default socket buffer size on the LXC host, in code. The
+first attempt raised the maximum instead and made no difference. It was left
+in the history on purpose.
 
-The library ends with the patterns these share. Three are worth repeating. The
-unprivileged container is a root cause, and the first thing to suspect. A green
-probe is evidence only of what it probed. A webhook that fails closed makes the
-control plane part of the data plane.
+</Incident>
+<Incident title="Argo CD never marked an app with an Ingress Healthy">
 
-## What isn't done
+For a long stretch, every app with an Ingress showed as Progressing in Argo CD
+and never reached Healthy. Traefik copies load-balancer status onto Ingresses
+from its published Service, and a NodePort Service has none. Setting the
+ingress endpoint's hostname explicitly gave the Ingresses a status, and Argo
+CD's health checks started telling the truth.
 
-The lab has no external users and no production load. These parts are not done
-yet:
+Before the cause was found, one app never started a pod at all, because its
+Deployment sat in a later sync wave behind an Ingress that could never become
+Healthy. That's where the lint keeping Ingresses in the last wave came from. It
+stayed after the root cause was fixed.
 
-- **Dokploy is still running.** It serves most of my personal apps and took new
-  ones as recently as September. Its retirement is planned and not started.
-  Caddy still sends the general app wildcard to Dokploy, and apps that moved
-  get explicit routes ahead of that wildcard.
-- **There are two registries.** Harbor serves the cluster. The forge's built-in
-  registry still serves every Dokploy app and a few cluster apps.
-- **Scans don't gate deploys.** Harbor scans every image, nothing blocks a
-  deploy on the result, and images are not signed.
-- **Canaries and network policy are proven on demos only.** Tenants roll out as
-  plain Deployments. k3s enforces network policy, and a demo app shows blocked
-  traffic refused outright. No tenant chart ships a NetworkPolicy yet.
-- **Restore has been drilled once**, on a demo volume.
-- **Nothing tells Argo CD about a push**, and Argo CD sends no notifications.
-- **The gate checks bot commits after the fact.**
+</Incident>
+<Incident title="Moved apps returned 404 on old bookmarks">
 
-## The through-lines
+Moving an app from Dokploy to the cluster spans two repos and two moments. The
+GitOps change gives the app an Ingress when it merges, and Caddy starts sending
+the app's old hostname to Traefik the next time its playbook runs. Traefik only
+answers for hostnames an Ingress claims. The first moved app's chart only
+claimed its new cluster hostname, so once Caddy re-rendered, bookmarks on the old
+hostname reached a Traefik with no route for them and got a 404. The onboarding
+command now puts both hostnames in every Ingress.
 
-- **Git is the record of what runs.** For a watched app, a deploy is a bot's
-  commit, a rollback is a revert, and the history of a values file reads as the
-  deploy log.
-- **State lives off the cluster.** Images, backups, telemetry and databases sit
-  on the NAS and the mini-PC, where they outlive anything that happens to the
-  cluster.
-- **The checks are checked.** The gate must reject known-bad fixtures, a render
-  must come out the same twice, and a probe counts only for what it probed.
-- **Real tenants find what demos miss.** The phases that built the platform
-  landed over two days in June. Moving real apps onto it from late August
-  produced the incident library above, and many of the platform's current rules
-  trace back to it.
+A `curl` returning 200 didn't help here, because it can't tell which backend
+answered. The check that works is to request a path unique to the new
+deployment and look for it in the pod's log.
 
-This writeup now works the same way. The June version is still published, and
-it is linked under **Versions** at the top.
+</Incident>
+<Incident title="A database pod hung on the node that can't mount NFS">
+
+A Postgres pod sat stuck for about eight hours. Removing a taint had let it
+schedule onto the LXC node, where mounting NFS needs a capability an
+unprivileged container can't have. Workloads that need an NFS volume now select
+nodes by a `homelab/nfs-capable` capability label.
+
+</Incident>
+<Incident title="Pods could resolve .lab names only some of the time">
+
+While Harbor was first being set up, it couldn't reliably reach the database or
+the object store by their internal `.lab` names, even though the same lookup
+from the node answered correctly every time. The failures looked tied to
+particular pods and nodes, and weren't. The node's resolver config listed both
+Pi-hole and a public resolver, and CoreDNS forwards to either. The public one
+answers "no such domain" for `.lab`, and CoreDNS cached that answer for 30
+seconds. A small `lab:53` server block in a `coredns-custom` ConfigMap now sends
+`.lab` lookups only to Pi-hole, without touching the Corefile that k3s manages.
+
+</Incident>
+<Incident title="A find-and-replace sent Argo CD to clone a container registry">
+
+When the charts were repointed at Harbor, a bulk find-and-replace also rewrote
+four Applications' `repoURL` fields, so Argo CD tried to `git clone` the
+registry. The fix was quick. The takeaway was to scope bulk edits to the one
+field being changed.
+
+</Incident>
+<Incident title="The control plane ran out of memory, and pod creation stopped">
+
+The server VM had 8 GB and no swap, and it ran the API server, its datastore and
+Argo CD with all of its Applications. During a drill, Argo CD's application
+controller grew from 833 MB to 1.2 GB in thirteen minutes and the node started
+thrashing. The API server slowed down but stayed up.
+
+Kueue, the batch scheduler for the GPU work, ran on the other node with plenty
+of memory, but it couldn't start against the struggling API server, so its
+liveness probe kept killing it. Kueue admits pods through webhooks that fail
+closed, and while it was down no new pod could be created in its namespaces,
+including the drill's own cleanup step. Restarting the application controller
+recovered the node within a minute.
+
+The follow-ups all closed within two days. The VM moved to the tower with
+16 GB, Argo CD got memory limits, routine hard refreshes stopped, memory alerts
+went in, a cleanup path that doesn't depend on admission was added, and Kueue's
+pod webhooks were scoped to pods that ask for a queue. A drill then showed an
+ordinary pod being created while Kueue was down, and a pod with a queue label
+still being refused.
+
+</Incident>
+</Incidents>
+
+## What's left
+
+The lab has no external users and no production load. Open items:
+
+- **The Dokploy migration** is mostly done, with a few apps and some cleanup
+  left, including retiring the forge's old container registry.
+- **Image scans don't gate deploys.** Harbor scans every image, nothing blocks a
+  deploy on the result, and images aren't signed.
+- **Canaries and network policy are only proven on demos.** k3s enforces
+  network policy, and a demo app shows blocked traffic being refused, but no
+  real app ships a NetworkPolicy yet.
+- **Restore has been tested once**, on a demo volume.
+- **Argo CD polls for changes** and sends no notifications.
+- **Bot commits are gated after the fact**, with admission control as the
+  backstop.
