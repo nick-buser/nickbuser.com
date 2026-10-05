@@ -13,9 +13,9 @@ changes: "Rewritten around GitOps on k3s and Argo CD, which most apps have moved
 ---
 
 The homelab is a few second-hand machines in my apartment that I use to learn
-platform engineering. It runs apps I actually use: static knowledge sites,
-small web apps with their own databases, and a few GPU model servers, which the
-[ML orchestration writeup](/work/ml-orchestration-lab) covers.
+platform engineering. It runs apps I actually use: static knowledge sites, small
+web apps with their own databases, and a few GPU model servers, which the [ML
+orchestration writeup](/work/ml-orchestration-lab) covers.
 
 Apps ship through GitOps. CI builds an image, a controller commits the new image
 tag to a git repository, and Argo CD applies that repository to a k3s cluster.
@@ -26,11 +26,11 @@ migration [gets its own writeup](/work/dokploy-to-gitops).
 
 ## The shape of it
 
-Three machines hold the lab, split by what they keep. A NAS host holds
-everything durable: Postgres, the Garage S3 object store, and NFS shares. A
-mini-PC runs the always-on services as LXC containers: the Git forge, the Caddy
-proxy, DNS, and SigNoz for telemetry. A GPU tower carries the k3s cluster and
-the CI server.
+Three machines hold the lab. A NAS host holds the durable data: Postgres, the
+Garage S3 object store, and NFS shares. A mini-PC runs the always-on services as
+LXC containers: the Git forge, the Caddy proxy, DNS, SigNoz for telemetry, and
+the Redpanda event broker. A GPU tower carries the k3s cluster and the CI
+server.
 
 <Figure num="Fig. 1" caption="Two k3s nodes on one tower, behind the same proxy as everything else. Caddy terminates TLS and hands plain HTTP to Traefik. Volumes and object storage live on the NAS.">
   <GitopsTopology />
@@ -38,11 +38,11 @@ the CI server.
 
 The cluster has two nodes, both on the tower. The server is a VM that runs the
 control plane and ordinary workloads. The agent is an unprivileged LXC
-container, which lets the tower's GPU be shared between it and the tower's
-other containers. A VM would need the card passed through, and passthrough
-hands the whole card to that one VM. The catch is that an unprivileged LXC
-can't mount NFS or raise some kernel socket limits, and both of those caused
-problems described below.
+container, which lets the tower's GPU be shared between it and the tower's other
+containers. A VM would need the card passed through, and passthrough hands the
+whole card to that one VM. The catch is that an unprivileged LXC can't mount NFS
+or raise some kernel socket limits, and both of those caused problems described
+below.
 
 Harbor, the container registry, runs in the cluster but keeps its image layers
 in Garage and its metadata in the NAS Postgres. Velero writes backups to Garage,
@@ -93,12 +93,11 @@ spec:
 Commit hashes have no version order, so the strategy is `newest-build`. The tag
 regex only matches immutable tags, which keeps `prod-latest` out. When a newer
 build shows up, the controller commits the new tag to `charts/<app>/values.yaml`
-on the GitOps repo's `main` branch, with a message like
-`build: automatic update of <app>`. The write-back path is relative to the
-chart's directory, which the first configuration got wrong: the very first
-automated commit created `charts/<app>/charts/<app>/values.yaml`. The controller
-is pinned to the 0.14 line because the 1.x rewrite ignores these annotations
-without any error.
+on the GitOps repo's `main` branch, with a message like `build: automatic update
+of <app>`. The write-back path is relative to the chart's directory, which the
+first configuration got wrong: the very first automated commit created
+`charts/<app>/charts/<app>/values.yaml`. The controller is pinned to the 0.14
+line because the 1.x rewrite ignores these annotations without any error.
 
 **Sync.** Argo CD polls the repo every three minutes, sees the new tag, renders
 the chart with Helm, and applies the difference. There's no webhook from the
@@ -114,11 +113,11 @@ from the tailnet or the home LAN. No port is forwarded to the lab. A new app on
 a cluster hostname needs no DNS, certificate or proxy change.
 
 CI's only job is to build and push the image. Deciding what runs happens on the
-cluster side, by a controller that reads the registry and writes git. That
-makes the git history of each app's `values.yaml` its deploy log. For an app the
+cluster side, by a controller that reads the registry and writes git. That makes
+the git history of each app's `values.yaml` its deploy log. For an app the
 controller watches, every deploy is a commit naming the old and new tag, and
-rolling back is a `git revert`. Pinned third-party images, such as the model servers and Harbor
-itself, are updated by ordinary reviewed commits.
+rolling back is a `git revert`. Pinned third-party images, such as the model
+servers and Harbor itself, are updated by ordinary reviewed commits.
 
 ## One repository for the cluster
 
@@ -129,8 +128,7 @@ itself, are updated by ordinary reviewed commits.
 The bootstrap applies one root, which lists two Argo CD Applications, `infra`
 and `apps`. Each one recurses a directory of child Applications, with pruning
 and self-heal on. Adding a platform component means adding a file to `infra/`,
-and adding an app means adding a file to `apps/`. The root itself never
-changes.
+and adding an app means adding a file to `apps/`. The root itself never changes.
 
 Upstream charts come in as native Helm sources pinned to an exact chart version,
 never a range or `HEAD`. Charts for the lab's own apps live in `charts/<app>/`,
@@ -142,17 +140,17 @@ for the same reason.
 
 Many app charts are thin wrappers around three shared charts: one for static
 sites, one for a stateful web service with an optional migration Job, volume and
-service account, and one for a batch job that's suspended by default. The
-shared charts are ordinary application charts on purpose. Image Updater writes
-to a values path like `static-spa.image.tag`, and in a Helm library chart no
-template would read that key. The app would keep running its old image while git
-showed the new tag.
+service account, and one for a batch job that's suspended by default. The shared
+charts are ordinary application charts on purpose. Image Updater writes to a
+values path like `static-spa.image.tag`, and in a Helm library chart no template
+would read that key. The app would keep running its old image while git showed
+the new tag.
 
 Inside a chart, sync waves set the order. One stateful app brings up its
-database pods first, then runs its migration Job, then starts the app. The migration runs
-as a Sync hook, because a PreSync hook deadlocks on a first install, and the CI
-gate pins the hook phase so it can't drift back. A lint also keeps every Ingress
-in its chart's last wave, for a reason covered below.
+database pods first, then runs its migration Job, then starts the app. The
+migration runs as a Sync hook, because a PreSync hook deadlocks on a first
+install, and the CI gate pins the hook phase so it can't drift back. A lint also
+keeps every Ingress in its chart's last wave, for a reason covered below.
 
 A new app needs an Application with its Image Updater annotations, a wrapper
 chart, its secrets, its namespace added to the policies, and a CI pipeline in
@@ -189,11 +187,11 @@ there's no runbook for that yet.
 
 ## Checks before and after a commit
 
-**The CI gate.** Every push and pull request to the GitOps repo runs a Woodpecker
-pipeline with Helm, the Kyverno CLI and yq pinned by version and checksum. Helm
-stays on 3.x because that's what Argo CD renders with, and a gate on a different
-major version could pass output that never ships. The gate runs in CI against a
-commit, so what it checked is exactly what's in git.
+**The CI gate.** Every push and pull request to the GitOps repo runs a
+Woodpecker pipeline with Helm, the Kyverno CLI and yq pinned by version and
+checksum. Helm stays on 3.x because that's what Argo CD renders with, and a gate
+on a different major version could pass output that never ships. The gate runs
+in CI against a commit, so what it checked is exactly what's in git.
 
 The main step renders every chart, every values overlay and every shared-chart
 fixture, then:
@@ -232,9 +230,9 @@ queue label and the annotation that the approved GPU step templates add.
 Services publish domain events, like a device going offline, through a
 transactional outbox. A service writes its business change and a row in an
 outbox table in the same Postgres transaction, and it never talks to the broker.
-Both rows commit or neither does, so the database and the event stream can't
-disagree about what happened. Apps hold no broker credentials, and their CI
-doesn't need to know the broker exists.
+Both rows commit or neither does, so an event can't go out for a change that
+rolled back, or go missing because a second write failed. Apps hold no broker
+credentials, and their CI doesn't need to know the broker exists.
 
 <Figure num="Fig. 4" caption="The business row and the event row commit in one transaction. Everything downstream reads the write-ahead log.">
   <OutboxTxnSvg />
@@ -255,8 +253,8 @@ Debezium's EventRouter routes each row to a topic named
 `<env>.<project>.<aggregate>`, keyed by the aggregate's id, which keeps the
 events for any one aggregate in order. A device lifecycle event from the device
 fleet lands on `prod.embedded.Device`. The router strips Debezium's change-data
-envelope, and the connectors emit the payload as a JSON object, so a consumer
-decodes it once. The conventional outbox table looks like this:
+envelope, and the connectors now emit the payload as a JSON object, so new
+records decode once. The conventional outbox table looks like this:
 
 ```sql
 CREATE TABLE outbox (
@@ -270,8 +268,9 @@ CREATE TABLE outbox (
 ```
 
 Tenants can rename the table and pick their own route-by, key and payload
-columns, and some use UUID ids. One app already kept an append-only command log,
-so that log is its outbox, without a second write per command.
+columns, and some use UUID ids, which the event envelope below expects. One app
+already kept an append-only command log, so that log is its outbox, without a
+second write per command.
 
 <Callout type="tip">
   On a shared Postgres, a quiet tenant is a hazard. Its replication slot holds
@@ -281,38 +280,43 @@ so that log is its outbox, without a second write per command.
   five minutes, which keeps the slot moving.
 </Callout>
 
-Every committed event gets published, possibly more than once, and ordering
-holds per aggregate. Consumers are expected to dedupe on the event id. Postgres
-stays the system of record, and the broker is a single Redpanda node.
+Once a tenant's connector is running, every committed event gets published,
+possibly more than once, and ordering holds per aggregate. Consumers are
+expected to dedupe on the event id. Postgres stays the system of record, and the
+broker is a single Redpanda node.
 
 Adding a producer starts with a row in a contracts file, with its credentials
 scaffolded into the vault. Then three idempotent deploys run in order: one
 creates the broker user and its prefix ACLs, one creates the replication role
 and publication, and one registers the connector once the publication exists.
-Run out of order, all three report success and create nothing. The contract row
-has to list the producer's aggregates, and a lint checks the list, so a
-producer's topics are known without reading its code. Renaming an aggregate in
-that list renames its topic.
+All three depend on the app's outbox table. Until the app's own migration has
+created it, they report success and create nothing. The contract row has to list
+the producer's aggregates, and a lint checks the list is well-formed, so the row
+shows a producer's topics without anyone reading its code. A topic is named
+after its aggregate, so renaming an aggregate moves its events to a new topic,
+and the old one stops receiving them.
 
-The payload of each event follows a shared envelope: a schema version, an event
-id that matches the outbox row's id, the time it happened, the aggregate's type
-and id, the event's type and data, and optional user, correlation and causation
-ids. A JSON Schema backs it, with fixtures taken from each producer, and it
-rejects unknown top-level fields, so adding one means changing the contract.
-The version lives in the event type's name, as in `…recorded.v1`. An additive
-change keeps the name, and a breaking change becomes `.v2`, which can share a
-topic with `.v1` while consumers move over. The envelope came out of finding
-that three producers had hand-copied one shape and three others emitted
-something different. Moving the producers onto it is the next step.
+Each event's payload is meant to follow a shared envelope: a schema version; an
+event id, a UUID that should equal the outbox row's id; when the producer
+recorded the event; the aggregate's type and id; the event's type and data; and
+optional user, correlation and causation ids. A JSON Schema backs it, with
+fixtures for the dev producers, and it rejects unknown top-level fields, so
+adding one means changing the contract. The version lives in the event type's
+name, as in `…recorded.v1`. An additive change keeps the name, and a breaking
+change becomes `.v2`, which can share a topic with `.v1` while consumers move
+over. The envelope came out of finding that three producers had hand-copied one
+shape and three others emitted something different. No producer conforms to it
+yet, and moving them onto it is the next step.
 
-In production, the device fleet publishes lifecycle events: rebooting a device
-puts `Device.offline` and `Device.online` on the log. Several personal apps
-publish in their dev environments. The devices themselves only speak MQTT. One
-MQTT broker fans their messages out three ways: Telegraf forwards metrics to
-SigNoz, a fleet-consumer service writes device state to Postgres, and because
-that write goes through the outbox, each lifecycle change also becomes an event.
+In production, the device fleet publishes lifecycle events. The check was
+rebooting a bench board, which put `Device.offline` and `Device.online` on the
+log. Several personal apps publish in their dev environments. The devices
+themselves only speak MQTT, and their broker has two subscribers: Telegraf
+forwards metrics to SigNoz, and a fleet-consumer service writes device state to
+Postgres. Because that write goes through the outbox, each lifecycle change also
+becomes an event.
 
-<Figure num="Fig. 6" caption="One MQTT broker, three destinations: live metrics in SigNoz, device state in Postgres, and through the outbox, events on the log.">
+<Figure num="Fig. 6" caption="One MQTT broker, two subscribers: Telegraf sends live metrics to SigNoz, and a fleet-consumer writes device state to Postgres, whose outbox turns each lifecycle change into an event.">
   <DeviceSinksSvg />
 </Figure>
 
@@ -322,13 +326,13 @@ The OpenTelemetry collector runs in the cluster from SigNoz's Kubernetes chart
 and sends cluster and kubelet metrics, Kubernetes events, container logs and
 host metrics to SigNoz, which runs outside the cluster. A scrape configuration
 adds the model servers' metrics. Alert rules live in the repo as JSON, including
-alerts on control-plane memory and on Kueue's availability that came out of
-one of the incidents below. Argo CD's own notifications aren't set up yet.
+alerts on control-plane memory and on Kueue's availability that came out of one
+of the incidents below. Argo CD's own notifications aren't set up yet.
 
 ## Canaries and backups
 
-Argo Rollouts and Velero are both installed, and neither has been exercised
-much yet.
+Argo Rollouts and Velero are both installed, and neither has been exercised much
+yet.
 
 One demo app runs as a canary. Its rollout steps through 25, 50 and 75 percent
 with a minute's pause at each, then goes to 100. An analysis Job queries SigNoz
@@ -347,7 +351,8 @@ server.
 
 ## What broke
 
-Each of these got a write-up in the repo when it happened.
+Each of these has a write-up in the lab's repos, written the same day or within
+a few days.
 
 <Incidents>
 <Incident title="Image pulls failed for a day and a half">
@@ -361,21 +366,21 @@ The problem was on the LXC node. `iptables-nft` sends its whole ruleset as one
 netlink message and grows the socket buffer to fit using `SO_SNDBUFFORCE`, which
 needs `CAP_NET_ADMIN` in the initial user namespace. An unprivileged container
 can never have that. Once the ruleset outgrew the default buffer, kube-proxy
-stopped writing rules, and the node kept routing with its last good set. Harbor's
-internal hop pointed at a pod IP that no longer existed.
+stopped writing rules, and the node kept routing with its last good set.
+Harbor's internal hop pointed at a pod IP that no longer existed.
 
 The fix raises the default socket buffer size on the LXC host, in code. The
-first attempt raised the maximum instead and made no difference. It was left
-in the history on purpose.
+first attempt raised the maximum instead and made no difference. It was left in
+the history on purpose.
 
 </Incident>
 <Incident title="Argo CD never marked an app with an Ingress Healthy">
 
 For a long stretch, every app with an Ingress showed as Progressing in Argo CD
 and never reached Healthy. Traefik copies load-balancer status onto Ingresses
-from its published Service, and a NodePort Service has none. Setting the
-ingress endpoint's hostname explicitly gave the Ingresses a status, and Argo
-CD's health checks started telling the truth.
+from its published Service, and a NodePort Service has none. Setting the ingress
+endpoint's hostname explicitly gave the Ingresses a status, and Argo CD started
+reporting those apps Healthy.
 
 Before the cause was found, one app never started a pod at all, because its
 Deployment sat in a later sync wave behind an Ingress that could never become
@@ -389,13 +394,13 @@ Moving an app from Dokploy to the cluster spans two repos and two moments. The
 GitOps change gives the app an Ingress when it merges, and Caddy starts sending
 the app's old hostname to Traefik the next time its playbook runs. Traefik only
 answers for hostnames an Ingress claims. The first moved app's chart only
-claimed its new cluster hostname, so once Caddy re-rendered, bookmarks on the old
-hostname reached a Traefik with no route for them and got a 404. The onboarding
-command now puts both hostnames in every Ingress.
+claimed its new cluster hostname, so once Caddy re-rendered, bookmarks on the
+old hostname reached a Traefik with no route for them and got a 404. The
+onboarding command now puts both hostnames in every Ingress.
 
 A `curl` returning 200 didn't help here, because it can't tell which backend
-answered. The check that works is to request a path unique to the new
-deployment and look for it in the pod's log.
+answered. The check that works is to request a path unique to the new deployment
+and look for it in the pod's log.
 
 </Incident>
 <Incident title="A database pod hung on the node that can't mount NFS">
@@ -420,10 +425,12 @@ seconds. A small `lab:53` server block in a `coredns-custom` ConfigMap now sends
 </Incident>
 <Incident title="A find-and-replace sent Argo CD to clone a container registry">
 
-When the charts were repointed at Harbor, a bulk find-and-replace also rewrote
-four Applications' `repoURL` fields, so Argo CD tried to `git clone` the
-registry. The fix was quick. The takeaway was to scope bulk edits to the one
-field being changed.
+When the Applications were repointed at Harbor, a bulk find-and-replace across
+every Application file also rewrote four of their `repoURL` fields, so Argo CD
+tried to read its git source from a container registry. The error looked like a
+passing git fault, but it survived a restart of the repo server. The giveaway
+was the one Application that stayed in sync: its repoint had been done by hand.
+Restoring the four `repoURL` values fixed it.
 
 </Incident>
 <Incident title="A pipeline check reported an empty topic that had a message in it">
@@ -432,21 +439,21 @@ The first real run of a new producer's verification script reported that its
 topic held no consumable message. The message was there. Two parsing bugs were
 stacked: the Redpanda CLI pretty-prints a record across many lines, and the
 record's body was JSON inside JSON. The script's self-test had passed the whole
-time, because its fixture was hand-written and only encoded once. Fixtures are
-now captured verbatim from the real command's output. The same review found the
-script's topic filter also matched the heartbeat topic, and only worked because
-of how the topic names happened to sort.
+time, because its fixture was hand-written and only encoded once. The fixture is
+now the real command's output, captured verbatim. The fixed check's first
+passing run printed two topics: its filter also matched the heartbeat topic, and
+had only picked the right one because of how the names sorted.
 
 </Incident>
 <Incident title="Some event payloads were encoded three times">
 
-Consumers were assumed to need two decodes per message, since the payload's
-JSON column came through the connector as a string. Measuring real records
-showed some needed three. One producer was serializing its payload to a string
-before writing it into its own JSON column, and none of that app's tests caught
-it. A one-line query on the column's type now settles the question, and the
-connectors were later changed to emit the payload as a JSON object, which
-removed the pipeline's own extra layer.
+The contracts file said a consumer would need to decode each message twice,
+since the payload's JSON column came through the connector as a string. That was
+an inference. Measuring real records showed some needed three decodes. One
+producer was serializing its payload to a string before writing it into its own
+JSON column, and none of that app's tests caught it. A one-line query on the
+column's type now settles the question, and the connectors were later changed to
+emit the payload as a JSON object, which removed the pipeline's own extra layer.
 
 </Incident>
 <Incident title="The control plane ran out of memory, and pod creation stopped">
@@ -463,10 +470,10 @@ closed, and while it was down no new pod could be created in its namespaces,
 including the drill's own cleanup step. Restarting the application controller
 recovered the node within a minute.
 
-The follow-ups all closed within two days. The VM moved to the tower with
-16 GB, Argo CD got memory limits, routine hard refreshes stopped, memory alerts
-went in, a cleanup path that doesn't depend on admission was added, and Kueue's
-pod webhooks were scoped to pods that ask for a queue. A drill then showed an
+The follow-ups all closed within two days. The VM moved to the tower with 16 GB,
+Argo CD got memory limits, routine hard refreshes stopped, memory alerts went
+in, a cleanup path that doesn't depend on admission was added, and Kueue's pod
+webhooks were scoped to pods that ask for a queue. A drill then showed an
 ordinary pod being created while Kueue was down, and a pod with a queue label
 still being refused.
 
@@ -477,8 +484,8 @@ still being refused.
 
 The lab has no external users and no production load. Open items:
 
-- **The Dokploy migration** is mostly done, with a few apps and some cleanup
-  left, including retiring the forge's old container registry.
+- **The Dokploy migration** is mostly done. A few apps and some cleanup are
+  left, including moving the last pipelines off the forge's built-in registry.
 - **Image scans don't gate deploys.** Harbor scans every image, nothing blocks a
   deploy on the result, and images aren't signed.
 - **Canaries and network policy are only proven on demos.** k3s enforces
