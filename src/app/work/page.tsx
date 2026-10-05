@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getAllWork } from "@/lib/content";
+import { getListedWork } from "@/lib/content";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/page-header";
 import { DocList } from "@/components/doc-list";
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
  * is never reachable only from the project card that links to it.
  */
 export default function Writeups() {
-  const writeups = getAllWork();
+  const writeups = getListedWork();
   return (
     <div className="nb-wrap nb-settle" style={{ paddingBottom: 96 }}>
       <PageHeader

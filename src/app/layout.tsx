@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Spectral, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { site } from "@/lib/site";
-import { getAllWork, getAllWriting } from "@/lib/content";
+import { getAllWriting, getListedWork } from "@/lib/content";
 import { Providers } from "@/app/providers";
 import type { SearchItem } from "@/components/command-palette";
 import { SiteHeader } from "@/components/site-header";
@@ -51,7 +51,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const searchItems: SearchItem[] = [
     ...site.nav.map((n) => ({ title: n.title, href: n.href, group: "Pages" })),
-    ...getAllWork().map((d) => ({
+    ...getListedWork().map((d) => ({
       title: d.frontmatter.title,
       href: `/work/${d.slug}`,
       group: "Writeups",

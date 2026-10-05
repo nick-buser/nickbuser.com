@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { site } from "@/lib/site";
 import { CATEGORIES, HOME_TOPICS, projectsIn } from "@/lib/projects";
-import { getAllWork, getAllWriting } from "@/lib/content";
+import { getAllWriting, getListedWork } from "@/lib/content";
 import { ExtLink, SectionLabel } from "@/components/ui";
 import { ProjectCard } from "@/components/project-card";
 
 export default function Home() {
   const essays = projectsIn("essay");
-  const writeups = getAllWork();
+  const writeups = getListedWork();
   const posts = getAllWriting();
 
   return (

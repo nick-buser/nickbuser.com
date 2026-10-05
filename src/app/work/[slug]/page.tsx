@@ -18,6 +18,8 @@ export async function generateMetadata({
   return {
     title: doc.frontmatter.title,
     description: doc.frontmatter.description,
+    // A placeholder is only reachable by link until it's written.
+    ...(doc.frontmatter.placeholder ? { robots: { index: false, follow: true } } : {}),
   };
 }
 

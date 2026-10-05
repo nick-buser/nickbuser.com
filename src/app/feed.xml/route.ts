@@ -1,5 +1,5 @@
 import { site } from "@/lib/site";
-import { getAllWork, getAllWriting } from "@/lib/content";
+import { getAllWriting, getListedWork } from "@/lib/content";
 
 export const dynamic = "force-static";
 
@@ -15,7 +15,7 @@ function escapeXml(value: string): string {
 export function GET() {
   // Writeups and blog posts, newest first — the feed carries everything new.
   const entries = [
-    ...getAllWork().map((d) => ({ ...d, path: `/work/${d.slug}` })),
+    ...getListedWork().map((d) => ({ ...d, path: `/work/${d.slug}` })),
     ...getAllWriting().map((d) => ({ ...d, path: `/blog/${d.slug}` })),
   ].sort((a, b) => b.frontmatter.date.getTime() - a.frontmatter.date.getTime());
 

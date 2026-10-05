@@ -1346,6 +1346,70 @@ a.nb-dt__title:hover {
   color: var(--brass);
 }
 
+/* ---- Incident cards — headline first, the story behind "Details +" ---- */
+.nb-incidents {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-5) 0 var(--space-6);
+}
+.nb-incident {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color var(--dur-quick) var(--ease-heat);
+}
+.nb-incident:hover,
+.nb-incident[open] {
+  border-color: var(--rule-warm);
+}
+.nb-incident__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.nb-incident__summary::-webkit-details-marker {
+  display: none;
+}
+.nb-incident__summary:focus-visible {
+  outline: 2px solid var(--accent-sacred);
+  outline-offset: 2px;
+}
+.nb-incident__title {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: 1.35;
+  color: var(--foreground);
+}
+.nb-incident__toggle {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  transition: color var(--dur-quick) var(--ease-heat);
+}
+.nb-incident__toggle::before {
+  content: "Details +";
+}
+.nb-incident[open] .nb-incident__toggle::before {
+  content: "Close −";
+}
+.nb-incident__summary:hover .nb-incident__toggle {
+  color: var(--brass);
+}
+.nb-incident__body {
+  padding: 0 var(--space-4) var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
 /* ---- Writeup versions — the ledger in the header, and the notice on a snapshot ---- */
 .nb-versions {
   margin-top: var(--space-6);

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { site } from "@/lib/site";
-import { getAllWork, getAllWriting } from "@/lib/content";
+import { getAllWriting, getListedWork } from "@/lib/content";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = site.url;
@@ -8,7 +8,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     (p) => ({ url: `${base}${p}`, lastModified: new Date() }),
   );
 
-  const work: MetadataRoute.Sitemap = getAllWork().map((d) => ({
+  const work: MetadataRoute.Sitemap = getListedWork().map((d) => ({
     url: `${base}/work/${d.slug}`,
     lastModified: d.frontmatter.updated ?? d.frontmatter.date,
   }));
