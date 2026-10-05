@@ -59,6 +59,33 @@ Shared by both collections:
 | `featured` | boolean | | surfaced on the home page |
 | `links.live` | url | | |
 | `links.repo` | url | | |
+| `changes` | string | | what this version changed from the one before it; shown in the version list |
+
+## Versions of a writeup
+
+A writeup about a project that keeps moving goes stale. When it does, it gets a
+new version rather than an edit in place, so the older account stays readable.
+
+- `content/work/<slug>.mdx` is always the **current** version, at `/work/<slug>`.
+- Each earlier version is a **frozen snapshot** at `content/work/<slug>/v<n>.mdx`,
+  served at `/work/<slug>/v<n>`. Snapshots number `v1`…`vN` with no gaps (the
+  build fails otherwise); the current version is N + 1.
+- Both pages show a version list in the header once a second version exists. A
+  snapshot also carries a notice linking to the current version, and is
+  `noindex` so search lands on the current one.
+
+**Cutting a new version:**
+
+1. `git mv content/work/<slug>.mdx content/work/<slug>/v<n>.mdx`, the next free
+   number. Don't touch its contents: it is the page as it was published.
+2. Write the new `content/work/<slug>.mdx`. Set `date` to the day this version
+   is published, and `changes` to one sentence saying what changed.
+3. Snapshots render with today's components. Don't change a component a snapshot
+   uses in a way that changes what it shows. If the new version needs a
+   different diagram, add a new component rather than editing the old one.
+
+Fix typos in the current version in place. A version is for when the account
+itself is out of date.
 
 ## Authoring a new writeup
 

@@ -45,6 +45,8 @@ export const workFrontmatter = baseFrontmatter.extend({
       repo: z.url().optional(),
     })
     .default({}),
+  /** What this version changed from the one before it — shown in the version list. */
+  changes: z.string().optional(),
 });
 export type WorkFrontmatter = z.infer<typeof workFrontmatter>;
 
@@ -115,4 +117,77 @@ export function getAllWork(): Doc<WorkFrontmatter>[] {
 
 export function getWork(slug: string): Doc<WorkFrontmatter> | null {
   return getAllWork().find((d) => d.slug === slug) ?? null;
+}
+
+/*
+ * Writeup versions. A writeup that gets rewritten keeps its earlier versions
+ * rather than being edited in place: content/work/<slug>.mdx is always the
+ * current version, and each earlier one is a frozen snapshot at
+ * content/work/<slug>/v<n>.mdx. Snapshots number v1..vN with no gaps, and the
+ * current version is N + 1.
+ */
+
+export interface WorkVersion {
+  version: number;
+  current: boolean;
+  href: string;
+  /** When this version was published — its own `date`. */
+  date: Date;
+  /** What this version changed from the one before it. */
+  changes?: string;
+}
+
+const SNAPSHOT_FILE = /^v([1-9]\d*)\.mdx$/;
+
+function snapshotNumbers(slug: string): number[] {
+  const dir = path.join(CONTENT_DIR, "work", slug);
+  if (!fs.existsSync(dir)) return [];
+  const numbers = fs
+    .readdirSync(dir)
+    .filter((f) => !f.startsWith("."))
+    .map((f) => {
+      const match = SNAPSHOT_FILE.exec(f);
+      if (!match) {
+        throw new Error(`Unexpected file work/${slug}/${f}: earlier versions are named v<n>.mdx`);
+      }
+      return Number(match[1]);
+    })
+    .sort((a, b) => a - b);
+  numbers.forEach((n, i) => {
+    if (n !== i + 1) {
+      throw new Error(`work/${slug}/ must hold v1..v${numbers.length} with no gaps; found v${n}`);
+    }
+  });
+  return numbers;
+}
+
+function loadSnapshot(slug: string, version: number): Doc<WorkFrontmatter> {
+  return { ...loadDoc("work", `${slug}/v${version}.mdx`, workFrontmatter), slug };
+}
+
+/** An earlier version of a writeup, or null if the writeup or that snapshot doesn't exist. */
+export function getWorkVersion(slug: string, version: number): Doc<WorkFrontmatter> | null {
+  if (!getWork(slug) || !snapshotNumbers(slug).includes(version)) return null;
+  return loadSnapshot(slug, version);
+}
+
+/** Every version of a writeup, newest first — the first entry is the current one. */
+export function getWorkVersions(slug: string): WorkVersion[] {
+  const current = getWork(slug);
+  if (!current) return [];
+  const snapshots = snapshotNumbers(slug);
+  const entry = (doc: Doc<WorkFrontmatter>, version: number, isCurrent: boolean): WorkVersion => ({
+    version,
+    current: isCurrent,
+    href: isCurrent ? `/work/${slug}` : `/work/${slug}/v${version}`,
+    date: doc.frontmatter.date,
+    changes: doc.frontmatter.changes,
+  });
+  return [
+    entry(current, snapshots.length + 1, true),
+    ...snapshots
+      .slice()
+      .reverse()
+      .map((n) => entry(loadSnapshot(slug, n), n, false)),
+  ];
 }

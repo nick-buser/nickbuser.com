@@ -90,7 +90,7 @@ export const projects: Project[] = [
     title: "Homelab Developer Platform",
     result:
       "A self-hosted internal developer platform on my own hardware: git push an app and it builds, deploys, and serves on the LAN.",
-    stack: ["proxmox", "terraform", "ansible", "postgres", "redpanda", "signoz", "caddy"],
+    stack: ["proxmox", "k3s", "argo cd", "terraform", "ansible", "postgres", "signoz"],
     status: "Running",
     category: "platform",
     links: { template: "https://github.com/nick-buser/homelab-template" },
