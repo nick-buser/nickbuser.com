@@ -115,7 +115,7 @@ export function IndexStatus({
   return (
     <div className="nb-dt__status">
       <p className="nb-dt__count" aria-live="polite">
-        {shown === total ? `${total} ${noun}` : `${shown} of ${total} ${noun}`}
+        {shown === total ? `${total} ${counted(noun, total)}` : `${shown} of ${total} ${counted(noun, total)}`}
       </p>
       {pills.length ? (
         <ul className="nb-dt__pills" aria-label="Active filters">
@@ -137,6 +137,11 @@ export function IndexStatus({
       ) : null}
     </div>
   );
+}
+
+/** "1 post", "3 posts" — the nouns here are all regular plurals. */
+function counted(plural: string, n: number): string {
+  return n === 1 ? plural.replace(/s$/, "") : plural;
 }
 
 /** The empty state, with a way back out of it. */
