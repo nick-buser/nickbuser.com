@@ -104,6 +104,7 @@ export const projects: Project[] = [
     status: "Running",
     category: "platform",
     links: {},
+    writeup: "ml-orchestration-lab",
   },
   {
     title: "Agent Control Plane",
