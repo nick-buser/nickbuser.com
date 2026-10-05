@@ -60,6 +60,7 @@ Shared by both collections:
 | `links.live` | url | | |
 | `links.repo` | url | | |
 | `changes` | string | | what this version changed from the one before it; shown in the version list |
+| `placeholder` | boolean | | a reserved page for a writeup not written yet, so another writeup can link to it. Reachable by URL; left out of `/work`, the home page, search, the feed and the sitemap; `noindex`. Drop the flag when the writeup is written. |
 
 ## Versions of a writeup
 

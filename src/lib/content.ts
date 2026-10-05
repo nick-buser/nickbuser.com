@@ -47,6 +47,11 @@ export const workFrontmatter = baseFrontmatter.extend({
     .default({}),
   /** What this version changed from the one before it — shown in the version list. */
   changes: z.string().optional(),
+  /**
+   * A reserved page for a writeup not written yet, so another writeup can link
+   * to it. Reachable by URL, kept out of every listing, and noindex.
+   */
+  placeholder: z.boolean().default(false),
 });
 export type WorkFrontmatter = z.infer<typeof workFrontmatter>;
 
@@ -117,6 +122,11 @@ export function getAllWork(): Doc<WorkFrontmatter>[] {
 
 export function getWork(slug: string): Doc<WorkFrontmatter> | null {
   return getAllWork().find((d) => d.slug === slug) ?? null;
+}
+
+/** The writeups a reader can browse to: everything except placeholders. */
+export function getListedWork(): Doc<WorkFrontmatter>[] {
+  return getAllWork().filter((d) => !d.frontmatter.placeholder);
 }
 
 /*
