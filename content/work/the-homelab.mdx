@@ -227,6 +227,95 @@ A fourth audits pod probes without enforcing anything. The fifth enforces in the
 GPU workflow namespace: a pod there that requests a GPU must carry the Kueue
 queue label and the annotation that the approved GPU step templates add.
 
+## Events without dual writes
+
+Services publish domain events, like a device going offline, through a
+transactional outbox. A service writes its business change and a row in an
+outbox table in the same Postgres transaction, and it never talks to the broker.
+Both rows commit or neither does, so the database and the event stream can't
+disagree about what happened. Apps hold no broker credentials, and their CI
+doesn't need to know the broker exists.
+
+<Figure num="Fig. 4" caption="The business row and the event row commit in one transaction. Everything downstream reads the write-ahead log.">
+  <OutboxTxnSvg />
+</Figure>
+
+Change data capture handles the rest. The shared Postgres runs with logical
+replication on. Each tenant, meaning one project in one environment, gets its
+own replication role, a publication covering its outbox table, and its own
+replication slot, so one tenant's problems stay with that tenant. A Debezium
+connector per tenant, running in Kafka Connect, reads that slot and publishes
+each new outbox row to Redpanda.
+
+<Figure num="Fig. 5" caption="Outbox to Redpanda. Debezium reads each tenant's slot, and the EventRouter sends every row to a topic per aggregate, keyed by the aggregate's id. Consumers are expected to be idempotent.">
+  <OutboxFlow />
+</Figure>
+
+Debezium's EventRouter routes each row to a topic named
+`<env>.<project>.<aggregate>`, keyed by the aggregate's id, which keeps the
+events for any one aggregate in order. A device lifecycle event from the device
+fleet lands on `prod.embedded.Device`. The router strips Debezium's change-data
+envelope, and the connectors emit the payload as a JSON object, so a consumer
+decodes it once. The conventional outbox table looks like this:
+
+```sql
+CREATE TABLE outbox (
+  id             BIGSERIAL PRIMARY KEY,  -- becomes the record's id header
+  aggregate_type TEXT NOT NULL,          -- picks the topic
+  aggregate_id   TEXT NOT NULL,          -- becomes the message key
+  event_type     TEXT NOT NULL,
+  payload        JSONB NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Tenants can rename the table and pick their own route-by, key and payload
+columns, and some use UUID ids. One app already kept an append-only command log,
+so that log is its outbox, without a second write per command.
+
+<Callout type="tip">
+  On a shared Postgres, a quiet tenant is a hazard. Its replication slot holds
+  the write-ahead log at its last read position while busier tenants keep
+  writing, and the log grows until the disk fills. Each tenant's publication
+  includes a small `debezium_heartbeat` table that the connector upserts every
+  five minutes, which keeps the slot moving.
+</Callout>
+
+Every committed event gets published, possibly more than once, and ordering
+holds per aggregate. Consumers are expected to dedupe on the event id. Postgres
+stays the system of record, and the broker is a single Redpanda node.
+
+Adding a producer starts with a row in a contracts file, with its credentials
+scaffolded into the vault. Then three idempotent deploys run in order: one
+creates the broker user and its prefix ACLs, one creates the replication role
+and publication, and one registers the connector once the publication exists.
+Run out of order, all three report success and create nothing. The contract row
+has to list the producer's aggregates, and a lint checks the list, so a
+producer's topics are known without reading its code. Renaming an aggregate in
+that list renames its topic.
+
+The payload of each event follows a shared envelope: a schema version, an event
+id that matches the outbox row's id, the time it happened, the aggregate's type
+and id, the event's type and data, and optional user, correlation and causation
+ids. A JSON Schema backs it, with fixtures taken from each producer, and it
+rejects unknown top-level fields, so adding one means changing the contract.
+The version lives in the event type's name, as in `…recorded.v1`. An additive
+change keeps the name, and a breaking change becomes `.v2`, which can share a
+topic with `.v1` while consumers move over. The envelope came out of finding
+that three producers had hand-copied one shape and three others emitted
+something different. Moving the producers onto it is the next step.
+
+In production, the device fleet publishes lifecycle events: rebooting a device
+puts `Device.offline` and `Device.online` on the log. Several personal apps
+publish in their dev environments. The devices themselves only speak MQTT. One
+MQTT broker fans their messages out three ways: Telegraf forwards metrics to
+SigNoz, a fleet-consumer service writes device state to Postgres, and because
+that write goes through the outbox, each lifecycle change also becomes an event.
+
+<Figure num="Fig. 6" caption="One MQTT broker, three destinations: live metrics in SigNoz, device state in Postgres, and through the outbox, events on the log.">
+  <DeviceSinksSvg />
+</Figure>
+
 ## Seeing the system
 
 The OpenTelemetry collector runs in the cluster from SigNoz's Kubernetes chart
@@ -337,6 +426,29 @@ registry. The fix was quick. The takeaway was to scope bulk edits to the one
 field being changed.
 
 </Incident>
+<Incident title="A pipeline check reported an empty topic that had a message in it">
+
+The first real run of a new producer's verification script reported that its
+topic held no consumable message. The message was there. Two parsing bugs were
+stacked: the Redpanda CLI pretty-prints a record across many lines, and the
+record's body was JSON inside JSON. The script's self-test had passed the whole
+time, because its fixture was hand-written and only encoded once. Fixtures are
+now captured verbatim from the real command's output. The same review found the
+script's topic filter also matched the heartbeat topic, and only worked because
+of how the topic names happened to sort.
+
+</Incident>
+<Incident title="Some event payloads were encoded three times">
+
+Consumers were assumed to need two decodes per message, since the payload's
+JSON column came through the connector as a string. Measuring real records
+showed some needed three. One producer was serializing its payload to a string
+before writing it into its own JSON column, and none of that app's tests caught
+it. A one-line query on the column's type now settles the question, and the
+connectors were later changed to emit the payload as a JSON object, which
+removed the pipeline's own extra layer.
+
+</Incident>
 <Incident title="The control plane ran out of memory, and pod creation stopped">
 
 The server VM had 8 GB and no swap, and it ran the API server, its datastore and
@@ -373,6 +485,8 @@ The lab has no external users and no production load. Open items:
   network policy, and a demo app shows blocked traffic being refused, but no
   real app ships a NetworkPolicy yet.
 - **Restore has been tested once**, on a demo volume.
+- **The event log has no consumers yet**, and the producers still have to move
+  onto the shared envelope.
 - **Argo CD polls for changes** and sends no notifications.
 - **Bot commits are gated after the fact**, with admission control as the
   backstop.
