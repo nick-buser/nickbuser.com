@@ -1295,7 +1295,7 @@ a.nb-dt__title:hover {
   font-size: var(--text-sm);
 }
 
-/* ---- Case-study chrome ---- */
+/* ---- Writeup chrome ---- */
 .nb-article {
   max-width: var(--reading-max);
   margin: 0 auto;

@@ -40,7 +40,7 @@ const NO_FILTERS: Filters = { category: [], status: [], links: [] };
 const STATUSES: ProjectStatus[] = ["Live", "Running", "Built", "In progress"];
 
 const LINK_KINDS: { id: LinkKind; title: string }[] = [
-  { id: "writeup", title: "Case study" },
+  { id: "writeup", title: "Writeup" },
   { id: "live", title: "Live demo" },
   { id: "repo", title: "Public source" },
 ];
@@ -52,7 +52,7 @@ const FACET_TITLES: Record<Facet, string> = {
 };
 
 function hasLink(p: Project, kind: LinkKind): boolean {
-  return kind === "writeup" ? Boolean(p.caseStudy) : Boolean(p.links[kind]);
+  return kind === "writeup" ? Boolean(p.writeup) : Boolean(p.links[kind]);
 }
 
 function haystack(p: Project): string {
@@ -286,9 +286,9 @@ export function ProjectTable({
                 <Badge tone={statusTone(p.status)}>{p.status}</Badge>
               </td>
               <td className="nb-dt__links">
-                {p.caseStudy ? (
-                  <Link href={`/work/${p.caseStudy}`} className="nb-extlink">
-                    Case study →
+                {p.writeup ? (
+                  <Link href={`/work/${p.writeup}`} className="nb-extlink">
+                    Writeup →
                   </Link>
                 ) : null}
                 {p.links.live ? <ExtLink href={p.links.live}>Live</ExtLink> : null}
@@ -312,11 +312,11 @@ export function ProjectTable({
   );
 }
 
-/** The title links to the deepest thing there is: case study, then demo, then source. */
+/** The title links to the deepest thing there is: writeup, then demo, then source. */
 function ProjectTitle({ project: p }: { project: Project }) {
-  if (p.caseStudy) {
+  if (p.writeup) {
     return (
-      <Link href={`/work/${p.caseStudy}`} className="nb-dt__title">
+      <Link href={`/work/${p.writeup}`} className="nb-dt__title">
         {p.title}
       </Link>
     );

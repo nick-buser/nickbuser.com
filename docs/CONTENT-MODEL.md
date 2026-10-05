@@ -5,8 +5,8 @@ schemas in `src/lib/content.ts` — a malformed post fails the build.
 
 ## Collections
 
-- **`work`** — project case studies (richer frontmatter). Index at `/work`
-  ("Case studies"), detail at `/work/<slug>`.
+- **`work`** — project writeups (richer frontmatter). Index at `/work`
+  ("Writeups"), detail at `/work/<slug>`.
 - **`writing`** — notes and essays, served as the blog at `/blog` and
   `/blog/<slug>` (the old `/writing` paths redirect).
 
@@ -15,14 +15,14 @@ each with a `category` (`platform` | `software` | `modelling` | `essay`). Platfo
 software, and formal modelling are the home page's sections, in that order,
 each as two-column cards (`HOME_TOPICS`); visual essays get their own page at
 `/visual-essays`, which keeps the searchable table. A project
-row can point into a case study with `caseStudy: "<slug>"` or
+row can point into a writeup with `writeup: "<slug>"` or
 `"<slug>#<section-id>"`.
 
 Categories are *topics* — clusters by the kind of work, never by where it
 runs: a cloud platform project belongs in `platform` exactly as the homelab
 does. A row is a program-sized project with its own goal. The parts of a
 project (its deploy path, its database setup, its operator CLI) are described
-in its card and case study, never given rows of their own. Titles say what the
+in its card and writeup, never given rows of their own. Titles say what the
 thing is to a reader with no context; internal names belong inside a writeup. There is deliberately no tag filtering — the table
 filters on category, status, and which links a project has.
 

@@ -5,7 +5,7 @@ import { statusTone, type Project } from "@/lib/projects";
 /**
  * WorkCard — the operation, made legible. A matte surface with a hairline that
  * warms to brass on hover; title in Fraunces, body in Spectral, stack as mono
- * chips, and the case-study/live/source links sitting below a quiet rule. A
+ * chips, and the writeup/live/source links sitting below a quiet rule. A
  * project with no public source says so, rather than leaving the rule bare.
  */
 export function ProjectCard({ project }: { project: Project }) {
@@ -25,9 +25,9 @@ export function ProjectCard({ project }: { project: Project }) {
       </div>
 
       <div className="nb-card__links">
-        {project.caseStudy ? (
-          <Link href={`/work/${project.caseStudy}`} className="nb-extlink">
-            {project.caseStudy.includes("#") ? "In the case study →" : "Case study →"}
+        {project.writeup ? (
+          <Link href={`/work/${project.writeup}`} className="nb-extlink">
+            {project.writeup.includes("#") ? "In the writeup →" : "Writeup →"}
           </Link>
         ) : null}
         {project.links.live ? (

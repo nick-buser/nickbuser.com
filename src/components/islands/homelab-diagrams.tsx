@@ -3,7 +3,7 @@
 import { AthanorFlow, n, e } from "@/components/islands/athanor-flow";
 
 /**
- * The homelab case-study diagrams. Each is a fixed-layout AthanorFlow built
+ * The homelab writeup's diagrams. Each is a fixed-layout AthanorFlow built
  * from the real architecture — pan / zoom to inspect, no drag. Used inside
  * <Figure> wrappers in content/work/the-homelab.mdx.
  */

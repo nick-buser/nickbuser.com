@@ -77,7 +77,7 @@ export function CommandPaletteProvider({
         onOpenChange={setOpen}
         label="Site command menu"
       >
-        <Command.Input placeholder="Search pages, case studies, posts…" />
+        <Command.Input placeholder="Search pages, writeups, posts…" />
         <Command.List>
           <Command.Empty>No results found.</Command.Empty>
           {groups.map((group) => (

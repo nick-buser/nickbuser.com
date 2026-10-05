@@ -71,7 +71,7 @@ export default function Home() {
         </div>
 
         <div>
-          <SectionLabel>Case studies</SectionLabel>
+          <SectionLabel>Writeups</SectionLabel>
           <p className="nb-elsewhere__lead">
             Long-form writeups of how the work fits together.
           </p>
@@ -83,7 +83,7 @@ export default function Home() {
             ))}
           </ul>
           <Link href="/work" className="nb-extlink">
-            All case studies →
+            All writeups →
           </Link>
         </div>
 

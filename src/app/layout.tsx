@@ -54,7 +54,7 @@ export default function RootLayout({
     ...getAllWork().map((d) => ({
       title: d.frontmatter.title,
       href: `/work/${d.slug}`,
-      group: "Case studies",
+      group: "Writeups",
       description: d.frontmatter.summary,
     })),
     ...getAllWriting().map((d) => ({

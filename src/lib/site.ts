@@ -15,7 +15,7 @@ export const site = {
   },
   nav: [
     { title: "Work", href: "/" },
-    { title: "Case studies", href: "/work" },
+    { title: "Writeups", href: "/work" },
     { title: "Visual essays", href: "/visual-essays" },
     { title: "Blog", href: "/blog" },
     { title: "About", href: "/about" },

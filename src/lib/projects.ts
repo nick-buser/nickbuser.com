@@ -4,7 +4,7 @@
  * Real projects only — plain descriptions, real stacks, real links. No invented
  * metrics, no first-person editorializing. This is the typed source the home
  * page, the project table, and the visual-essays page render from; the MDX
- * content layer (`lib/content.ts`) drives the case studies and the blog.
+ * content layer (`lib/content.ts`) drives the writeups and the blog.
  */
 
 export type ProjectStatus = "Live" | "Running" | "Built" | "In progress";
@@ -36,10 +36,10 @@ export interface Project {
    */
   links: { live?: string; repo?: string; template?: string };
   /**
-   * Path of an in-site case study under /work, if one covers it — a slug, or a
+   * Path of an in-site writeup under /work, if one covers it — a slug, or a
    * slug plus `#section` when the project is one part of a larger writeup.
    */
-  caseStudy?: string;
+  writeup?: string;
 }
 
 /** Category labels, in display (and sort) order. */
@@ -94,7 +94,7 @@ export const projects: Project[] = [
     status: "Running",
     category: "platform",
     links: { template: "https://github.com/nick-buser/homelab-template" },
-    caseStudy: "the-homelab",
+    writeup: "the-homelab",
   },
   {
     title: "ML Orchestration Lab",

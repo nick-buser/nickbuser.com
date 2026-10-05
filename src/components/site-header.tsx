@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { site } from "@/lib/site";
 import { useCommandPalette } from "@/components/command-palette";
 
-/** "/" is only itself; every other section owns its subtree (/work/<slug> → Case studies). */
+/** "/" is only itself; every other section owns its subtree (/work/<slug> → Writeups). */
 function isCurrent(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }

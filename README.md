@@ -22,7 +22,7 @@ pnpm lint
 
 ```
 content/            # MDX writeups
-  work/             #   project case studies
+  work/             #   project writeups
   writing/          #   notes & essays (served at /blog)
 src/
   app/              # routes (home, work, visual-essays, blog, about) + sitemap/robots/feed
