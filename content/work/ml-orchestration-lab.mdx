@@ -9,16 +9,16 @@ stack:
   ["kueue", "volcano", "argo workflows", "slurm", "k3s", "pytorch", "postgres", "fastapi", "react", "opentelemetry", "signoz", "grafana"]
 featured: true
 tags: ["ml", "gpu", "scheduling", "kubernetes", "observability"]
-changes: "Adds how runs end and get retried, the experiment tracker, the telemetry and alerts, and the places a GPU step can wait. Corrects several details against the source."
+changes: "Adds how runs end and get retried, the experiment tracker, the telemetry and alerts, and the places a GPU step can wait. Corrects several details from the first version."
 ---
 
 This lab is where I learn how ML platforms run GPU work: queues and quota, gang
 scheduling, preemption, what happens to a run when its pod is taken away, and
 how an operator can tell what any of it is doing. It runs on the platform
 described in [The Homelab](/work/the-homelab), and it has one GPU, a 16 GB RTX
-5060 Ti. The lab's design record says outright that it is built for patterns
-that matter at scale, such as many GPUs, mixed node types and fault injection,
-and that it is oversized for the one card it has.
+5060 Ti. It is meant for patterns that matter at scale, such as many GPUs,
+mixed node types and fault injection, so it is oversized for one card on
+purpose.
 
 Most of the work falls in two stretches, with smaller pieces between them. At
 the end of June, while the lab briefly had a second GPU, a series of training
@@ -32,8 +32,8 @@ ended, and a tracker that shows them.
 
 The card is a consumer Blackwell part. It has no MIG partitioning and no vGPU,
 so it can't be split in hardware. The cluster's GPU node is an unprivileged LXC
-container on the tower, which lets the card be shared with the tower's other
-containers. A VM would need the card passed through, and passthrough gives the
+container on the desktop tower that holds the card, which lets the card be
+shared with the tower's other containers. A VM would need the card passed through, and passthrough gives the
 whole card to one VM.
 
 The NVIDIA device plugin time-slices the card into eight `nvidia.com/gpu`
@@ -74,9 +74,9 @@ gained a registry of its tenants, then a check that reads which processes
 actually hold GPU memory, through their cgroups, instead of trusting service
 names.
 
-The ruling that replaced it said the lease existed only because of that
-topology, and the fix was to remove the topology. Every GPU consumer would move
-into Kubernetes, arbitrated by priority classes, Kueue's quota and Volcano's
+The lease only existed because of that topology, so the fix was to remove the
+topology rather than improve the lease. Every GPU consumer moves into
+Kubernetes, arbitrated by priority classes, Kueue's quota and Volcano's
 gangs. The models moved into the cluster as
 Deployments over the following week. The lease's registry has been empty since
 the end of September, and asking it for the card now fails with a message that
@@ -116,8 +116,7 @@ scheduling`.
 
 ## Kueue decides whether, Volcano decides where
 
-Two schedulers run here, at different layers, and a design note in the GitOps
-repo draws the line between them. Kueue is the admission and quota layer. It
+Two schedulers run here, at different layers. Kueue is the admission and quota layer. It
 never places a pod on a node. It holds a pod's scheduling gate until the pod's
 priority, its queue and that queue's quota say it may proceed, then releases it
 to whichever scheduler the pod names. Volcano is a placement layer, and the
@@ -132,7 +131,7 @@ which could admit half of a gang that Volcano would then wait on forever.
 Kueue's pod-group labels close that gap. When each pod carries a group name and
 a total count equal to Volcano's `minAvailable`, Kueue builds no Workload until
 all N pods exist, then ungates them together. Volcano then binds all N or none.
-The design note's summary is two gang guarantees, one per layer: quota
+That gives two gang guarantees, one per layer: quota
 admission in Kueue and node placement in Volcano. A pod can clear Kueue's quota
 and still have nowhere to land, and it can have a node waiting while quota
 holds it back. The composition was checked against Kueue's source at the
@@ -150,7 +149,7 @@ different objects. Volcano evicts pods at placement. Kueue evicts whole
 Workloads at the quota level, sometimes before a pod even exists. The case
 where both act on one gang has not been exercised.
 
-Volcano's install file records the trade-off of running it. A second scheduler
+Running Volcano has a cost. A second scheduler
 is more to operate, and two schedulers can race to bind the same resource,
 though neither problem bites on a single GPU node. The lighter alternative was the coscheduling plugin. Volcano won on its job
 launcher, which hands each pod the peer addresses that Gloo training needs to
@@ -286,8 +285,8 @@ second one.
 
 In the workflow namespace, Kyverno enforces two rules on any pod that requests
 a GPU. It must carry a Kueue queue label, and it must carry the annotation the
-templates stamp on it. The policy's comment explains the second rule: a
-hand-written pod that copies the queue label alone is still rejected. GPU
+templates stamp on it. The second rule is there so that a hand-written pod
+that copies the queue label alone is still rejected. GPU
 workloads in the research and serving namespaces carry their queue labels by
 convention.
 
@@ -297,9 +296,9 @@ no way to make one workflow's step wait for another's. The gang template sits
 outside that lock on purpose.
 
 A benchmark workflow brings up a small model server in the research namespace,
-sends it requests, and tears it down in an exit handler. Review found where its
-lock has to sit: a lock on a template releases when that step finishes, so the
-benchmark holds its lock for the whole workflow, cleanup included. During the
+sends it requests, and tears it down in an exit handler. A lock on a template
+releases when that step finishes, so the benchmark holds its lock at the
+workflow level, for the whole run, cleanup included. During the
 control-plane incident below, the exit handler's own pod couldn't be created,
 which left a benchmark server orphaned and holding about 5 GB of the card.
 Deleting the Workflow object doesn't run the exit handler at all either. A
@@ -380,9 +379,9 @@ garbage-collection command deletes after a day's grace.
 
 **Checkpoints.** A run can store a checkpoint as a derived artifact and, on a
 retry, walk back through the attempts it replaces to the nearest one that wrote
-a checkpoint. The execution contract lists what a checkpoint must carry for a
-bit-for-bit resume, including the optimizer state, both random number
-generators, the data cursor and the epoch order. The resume tests drop each of
+a checkpoint. For a bit-for-bit resume, a checkpoint has to carry the
+optimizer state, both random number generators, the data cursor and the epoch
+order. The resume tests drop each of
 those in turn and expect the resume to stop matching. They run in CI, and a
 live resume on the cluster hasn't been run yet. A job that reclaims
 checkpoints no longer needed, and the blobs they leave behind, is scheduled
@@ -433,7 +432,7 @@ half minutes, holding Argo's GPU lock while it waited. An interrupted attempt
 keeps whatever it wrote, so a reader that counts results without filtering on
 status counts that cell twice.
 
-One trial can't rule out a race the execution contract records. In the drill,
+One trial can't rule out a race. In the drill,
 Kueue's finalizer kept the deleted pod's object around for a few seconds after
 its container exited. If Argo reads the pod in that window, it sees `Failed`
 with exit code 143, and `OnError` won't retry it. A kubelet eviction
@@ -452,7 +451,7 @@ key, a wrongly failed row could let a duplicate of a cell that's still running
 start.
 
 The stalled-run alert used to fire after fifteen minutes without a heartbeat,
-which the contract never promised. It now fires at two hours and fifteen
+though a study only has to beat once every two hours. It now fires at two hours and fifteen
 minutes, and its title says the reaper may be down, since a row that old means
 the reaper's sweep hasn't run.
 
@@ -462,8 +461,8 @@ an hour, and the Workload is garbage-collected with its pod, so the run row is
 the record that lasts.
 
 Nothing publishes run lifecycle events yet. The homelab already has an event
-log, a transactional outbox from Postgres into Redpanda. The design slot is to
-write run events (opened, gone quiet, finished, failed) to an outbox table in
+log, a transactional outbox from Postgres into Redpanda. The plan is to write
+run events (opened, gone quiet, finished, failed) to an outbox table in
 the same transactions that change the run row, and to have Argo Events start an
 analysis or debrief workflow when a study finishes. Neither half is built.
 
@@ -493,7 +492,7 @@ which the app shows as "ran, needs a verdict".
 The tracker's API is a FastAPI service, and its OpenAPI document is the
 contract the web app's typed client is generated from, with a CI check for
 drift. Reads go through a read-only database role, and plan edits go through
-the experiment library's single writer. Nothing in the API submits, cancels or
+the one module allowed to write plans. Nothing in the API submits, cancels or
 re-runs. A workflow's live phase comes from Argo through a ten-second cache. A
 404 shows as `gone` and any other failure as `unavailable`, never a 500. Since
 early October, a workflow whose live object has been collected is read from
@@ -619,10 +618,10 @@ need an eBPF attach that an unprivileged container most likely can't make. That
 hasn't been tried, because turning it on risks draining the node. The gap
 closes when the card leaves the container.
 
-In mid-September the plan was to extend these containers and keep Slurm off
-Kubernetes. A week later the lab's goal was restated around patterns that
-scale, and Slurm is now headed for Slinky, which runs it on Kubernetes so its
-GPU jobs fall under the same Kueue quota as everything else. Its acceptance
+Slurm is headed for Slinky, which runs it on Kubernetes so its GPU jobs fall
+under the same Kueue quota as everything else. The first plan kept Slurm in
+these containers, which is the least machinery for one card. It changed when
+the lab's aim settled on patterns that scale. Its acceptance
 test is a Slurm GPU job submitted while the 7B serves: it must either wait on
 Kueue or preempt by priority class, and never share the card with the model.
 Slinky isn't built.
@@ -670,9 +669,9 @@ a long-lived TCPStore, let the job shrink to one worker and keep training. The
 fast card trained alone for about 220 steps during the outage, the slow card
 rejoined at step 271 with the current weights, and the job finished all 600
 steps. That refuted an earlier note that this needed etcd or matching PyTorch
-versions. The series' roadmap draws the conclusion that protecting a gang and
-keeping it preemptible are mutually exclusive, so resilience has to live in the
-job: checkpoints, a supervisor, dynamic membership.
+versions. Protecting a gang and keeping it preemptible are mutually exclusive,
+so resilience has to live in the job: checkpoints, a supervisor, dynamic
+membership.
 
 **Where the time goes.** Phase 19 split a step into compute, waiting and
 network, on a synthetic workload. A barrier before each all-reduce separated
@@ -734,9 +733,9 @@ class that doesn't exist, and the other three were CPU cells that got through
 because `&&` short-circuited. No input could have produced a running GPU pod,
 and a CPU cell with no priority failed too. The fix quoted both sides, a test
 now holds the rule over every workflow file, and the resubmitted cell
-succeeded. The postmortem's rules are to treat any value spliced into an
-expression or a shell line as a quoting problem, and to count a dry run as a
-schema check and nothing more.
+succeeded. Since then, any value spliced into an expression or a shell line
+is treated as a quoting problem, and a dry run counts as a schema check and
+nothing more.
 
 </Incident>
 <Incident title="Kueue's fail-closed webhook stopped pod creation">
@@ -868,7 +867,7 @@ users. Within that:
   platform smoke test or drill. The sweep template has only been dry-run, and a
   live checkpoint resume hasn't been run.
 - **Run events aren't published.** The outbox and the Argo Events consumer are
-  a design slot, nothing alerts on an interrupted run that was never retried,
+  planned, not built, nothing alerts on an interrupted run that was never retried,
   and Argo CD sends no notifications.
 - **The GPU test lane fails on credentials.** It runs on the card and fails
   with a 401 fetching a gated model, until two CI settings allow the cache
