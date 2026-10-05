@@ -17,15 +17,9 @@ import {
 import {
   GpuAdmissionFlow,
   GpuQueueTree,
-  ExperimentFlow,
-} from "@/components/islands/ml-diagrams";
-import { StepTimeSvg, OverlapSpeedupSvg } from "@/components/diagrams/ml-charts";
-import {
   RunEndingsFlow,
-  TrackerFlow,
-  MlTelemetryFlow,
-} from "@/components/islands/ml-v2-diagrams";
-import { PreemptionTimelineSvg } from "@/components/diagrams/ml-v2-charts";
+  TelemetryStackFlow,
+} from "@/components/islands/ml-diagrams";
 import {
   OutboxTxnSvg,
   DeviceSinksSvg,
@@ -72,13 +66,8 @@ export const mdxComponents = {
   AppOfAppsTree,
   GpuAdmissionFlow,
   GpuQueueTree,
-  ExperimentFlow,
-  StepTimeSvg,
-  OverlapSpeedupSvg,
   RunEndingsFlow,
-  TrackerFlow,
-  MlTelemetryFlow,
-  PreemptionTimelineSvg,
+  TelemetryStackFlow,
   OutboxTxnSvg,
   DeviceSinksSvg,
   VizPipelineSvg,

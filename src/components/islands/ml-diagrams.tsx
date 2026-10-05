@@ -118,60 +118,156 @@ export function GpuQueueTree() {
   );
 }
 
-/* ── An experiment, submit to record ── */
-export function ExperimentFlow() {
+/* ── How a run's row gets its final status ── */
+export function RunEndingsFlow() {
   return (
     <AthanorFlow
-      height={400}
+      height={460}
       nodes={[
-        n("cli", { x: 0, y: 90 }, {
-          kind: "CLI",
-          label: "submit",
-          sub: "study · spec · priority",
+        n("preempt", { x: 0, y: 0 }, {
+          kind: "KUEUE",
+          label: "Preemption",
+          sub: "a higher class needs quota",
         }),
-        n("workflow", { x: 205, y: 90 }, {
-          kind: "ARGO",
-          label: "Cell or sweep",
-          sub: "templates pinned by commit",
+        n("drain", { x: 0, y: 95 }, {
+          kind: "NODE",
+          label: "Drain",
+          sub: "eviction API",
+        }),
+        n("cancel", { x: 0, y: 190 }, {
+          kind: "CLI",
+          label: "Cancel",
+          sub: "mark the row, then Stop",
+        }),
+        n("raised", { x: 0, y: 300 }, {
+          kind: "STUDY",
+          label: "Code raised",
+        }),
+        n("killed", { x: 0, y: 400 }, {
+          kind: "NODE",
+          label: "SIGKILL · OOM",
+          sub: "nothing runs on the way out",
+        }),
+        n("sigterm", { x: 250, y: 95 }, {
+          kind: "SIGNAL",
+          label: "SIGTERM",
+          sub: "handler writes nothing",
+          tone: "warm",
+        }),
+        n("exit", { x: 480, y: 150 }, {
+          kind: "RUN",
+          label: "Close the row",
+          sub: "compare-and-set on running",
           tone: "cool",
         }),
-        n("step", { x: 430, y: 90 }, {
-          kind: "PLATFORM",
-          label: "GPU step template",
-          sub: "queue · priority · retry",
-          tone: "warm",
+        n("reaper", { x: 480, y: 400 }, {
+          kind: "CRONWORKFLOW",
+          label: "Reaper",
+          sub: "every 10 min · 2 h silent",
+          tone: "cool",
         }),
-        n("pod", { x: 655, y: 90 }, {
-          kind: "RUNTIME",
-          label: "Study pod",
-          sub: "main(spec)",
+        n("interrupted", { x: 730, y: 0 }, {
+          kind: "STATUS",
+          label: "interrupted",
+          sub: "stopped from outside",
           tone: "sacred",
         }),
-        n("row", { x: 890, y: -30 }, {
-          kind: "RECORD",
-          label: "Run row",
-          sub: "Postgres · one success per key",
-          tone: "warm",
+        n("cancelled", { x: 730, y: 140 }, {
+          kind: "STATUS",
+          label: "cancelled",
+          sub: "a cancel came first",
+          tone: "sacred",
         }),
-        n("blobs", { x: 890, y: 90 }, {
-          kind: "ARTIFACTS",
-          label: "Content-addressed",
-          sub: "Garage S3 · sha-256",
-          tone: "warm",
+        n("failed", { x: 730, y: 300 }, {
+          kind: "STATUS",
+          label: "failed",
+          sub: "the code or the process died",
+          tone: "sacred",
         }),
-        n("telemetry", { x: 890, y: 210 }, {
-          kind: "TELEMETRY",
-          label: "SigNoz",
-          sub: "joined by pod name",
+        n("retry", { x: 970, y: 0 }, {
+          kind: "ARGO",
+          label: "Retry attempt",
+          sub: "new row · retry_of",
+          tone: "warm",
         }),
       ]}
       edges={[
-        e("c-w", "cli", "workflow", { label: "Workflow" }),
-        e("w-s", "workflow", "step", { label: "templateRef" }),
-        e("s-p", "step", "pod", { label: "Kueue admits" }),
-        e("p-r", "pod", "row", { label: "open · close" }),
-        e("p-b", "pod", "blobs", { label: "put" }),
-        e("p-t", "pod", "telemetry", { label: "OTLP", dashed: true }),
+        e("p-s", "preempt", "sigterm"),
+        e("d-s", "drain", "sigterm"),
+        e("c-s", "cancel", "sigterm"),
+        e("s-x", "sigterm", "exit", { label: "SystemExit(143)" }),
+        e("r-x", "raised", "exit", { label: "exception" }),
+        e("x-i", "exit", "interrupted", { label: "no cancel mark" }),
+        e("x-c", "exit", "cancelled", { label: "cancel mark" }),
+        e("x-f", "exit", "failed"),
+        e("k-r", "killed", "reaper", { label: "row goes quiet", dashed: true }),
+        e("r-f", "reaper", "failed"),
+        e("i-r", "interrupted", "retry", { label: "OnError", dashed: true }),
+      ]}
+    />
+  );
+}
+
+/* ── Telemetry for one run, layer by layer. Dashed edges are planned. ── */
+export function TelemetryStackFlow() {
+  return (
+    <AthanorFlow
+      height={500}
+      nodes={[
+        n("model", { x: 0, y: 0 }, {
+          kind: "MODEL",
+          label: "Model internals",
+          sub: "activations · nnsight",
+        }),
+        n("kernels", { x: 0, y: 100 }, {
+          kind: "FRAMEWORK",
+          label: "Kernels and framework",
+          sub: "torch.profiler · Perfetto",
+        }),
+        n("card", { x: 0, y: 200 }, {
+          kind: "DEVICE",
+          label: "Process and card",
+          sub: "memory · power · clocks",
+          tone: "sacred",
+        }),
+        n("run", { x: 0, y: 300 }, {
+          kind: "RUN",
+          label: "Run and requests",
+          sub: "spans · heartbeats",
+        }),
+        n("cluster", { x: 0, y: 400 }, {
+          kind: "CLUSTER",
+          label: "Scheduler and cluster",
+          sub: "Kueue · Argo · k8s events",
+        }),
+        n("artifacts", { x: 330, y: 70 }, {
+          kind: "ARTIFACTS",
+          label: "Run artifacts",
+          sub: "traces · sample tables",
+          tone: "warm",
+        }),
+        n("signoz", { x: 330, y: 320 }, {
+          kind: "TELEMETRY",
+          label: "SigNoz",
+          sub: "metrics · traces · logs",
+          tone: "cool",
+        }),
+        n("record", { x: 640, y: 195 }, {
+          kind: "RECORD",
+          label: "The run",
+          sub: "joined on run id and pod",
+          tone: "warm",
+        }),
+      ]}
+      edges={[
+        e("m-a", "model", "artifacts", { dashed: true }),
+        e("k-a", "kernels", "artifacts", { label: "trace files", dashed: true }),
+        e("c-a", "card", "artifacts", { label: "10 Hz samples", dashed: true }),
+        e("c-s", "card", "signoz", { label: "15 s, per pod", animated: true }),
+        e("r-s", "run", "signoz", { animated: true }),
+        e("l-s", "cluster", "signoz", { animated: true }),
+        e("a-r", "artifacts", "record"),
+        e("s-r", "signoz", "record", { label: "run id · pod" }),
       ]}
     />
   );
