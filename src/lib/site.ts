@@ -10,6 +10,8 @@ export const site = {
     "Platform engineering — infrastructure, delivery, and developer tooling — plus software, formal models, and visual essays.",
   /** The one line under the name on the home masthead. */
   lede: "Platform engineering — infrastructure, delivery, and developer tooling — alongside software projects and formal models.",
+  /** The one line describing the blog — on its own page and on the home page. */
+  blogLead: "On how the projects here are built, and on ideas worth writing down.",
   author: {
     name: "Nick Buser",
   },

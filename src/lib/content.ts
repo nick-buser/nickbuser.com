@@ -27,7 +27,10 @@ const baseFrontmatter = z.object({
   cover: z.string().optional(),
 });
 
-export const writingFrontmatter = baseFrontmatter;
+export const writingFrontmatter = baseFrontmatter.extend({
+  /** One of the site's topics (HOME_TOPICS in lib/projects.ts) — the blog's filter; never free tags. */
+  topic: z.enum(["platform", "software", "modelling"]).optional(),
+});
 export type WritingFrontmatter = z.infer<typeof writingFrontmatter>;
 
 export const workFrontmatter = baseFrontmatter.extend({

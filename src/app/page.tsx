@@ -89,7 +89,7 @@ export default function Home() {
 
         <div>
           <SectionLabel>Blog</SectionLabel>
-          <p className="nb-elsewhere__lead">Shorter notes and essays.</p>
+          <p className="nb-elsewhere__lead">{site.blogLead}</p>
           <ul className="nb-elsewhere__list">
             {posts.slice(0, 4).map((d) => (
               <li key={d.slug}>

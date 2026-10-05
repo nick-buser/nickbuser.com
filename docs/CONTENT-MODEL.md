@@ -40,6 +40,12 @@ Shared by both collections:
 | `draft` | boolean | | hidden in production |
 | `cover` | string | | image path |
 
+`writing` (the blog) adds:
+
+| field | type | required | notes |
+| --- | --- | --- | --- |
+| `topic` | `platform` \| `software` \| `modelling` | | the blog's filter, alongside year; posts without one file under "Other". Never free tags. |
+
 `work` adds:
 
 | field | type | required | notes |
