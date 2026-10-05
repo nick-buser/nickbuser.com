@@ -1,20 +1,19 @@
 import Link from "next/link";
 import { Badge, Chip, ExtLink } from "@/components/ui";
-import { isLive, type Project } from "@/lib/projects";
+import { statusTone, type Project } from "@/lib/projects";
 
 /**
  * WorkCard — the operation, made legible. A matte surface with a hairline that
  * warms to brass on hover; title in Fraunces, body in Spectral, stack as mono
- * chips, and the live/repo links sitting below a quiet rule.
+ * chips, and the case-study/live/source links sitting below a quiet rule. A
+ * project with no public source says so, rather than leaving the rule bare.
  */
 export function ProjectCard({ project }: { project: Project }) {
   return (
     <article className="nb-card">
       <div className="nb-card__head">
         <h3 className="nb-card__title">{project.title}</h3>
-        <Badge tone={isLive(project.status) ? "positive" : "complete"}>
-          {project.status}
-        </Badge>
+        <Badge tone={statusTone(project.status)}>{project.status}</Badge>
       </div>
 
       <p className="nb-card__body">{project.result}</p>
@@ -28,15 +27,17 @@ export function ProjectCard({ project }: { project: Project }) {
       <div className="nb-card__links">
         {project.caseStudy ? (
           <Link href={`/work/${project.caseStudy}`} className="nb-extlink">
-            Case study →
+            {project.caseStudy.includes("#") ? "In the case study →" : "Case study →"}
           </Link>
         ) : null}
         {project.links.live ? (
           <ExtLink href={project.links.live}>Live</ExtLink>
         ) : null}
         {project.links.repo ? (
-          <ExtLink href={project.links.repo}>Repo</ExtLink>
-        ) : null}
+          <ExtLink href={project.links.repo}>Source</ExtLink>
+        ) : (
+          <span className="nb-card__private">Private source</span>
+        )}
       </div>
     </article>
   );

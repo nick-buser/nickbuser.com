@@ -113,3 +113,26 @@ export function getAllWork(): Doc<WorkFrontmatter>[] {
 export function getWork(slug: string): Doc<WorkFrontmatter> | null {
   return getAllWork().find((d) => d.slug === slug) ?? null;
 }
+
+/**
+ * The `## ` sections of a doc, with the ids rehype-slug will give them (same
+ * rule as github-slugger: lowercase, punctuation dropped, spaces to hyphens).
+ * Lets a page link straight into a writeup's sections without rendering it.
+ */
+export function getSections(doc: Doc<unknown>): { id: string; title: string }[] {
+  let fenced = false;
+  return doc.content
+    .split("\n")
+    .filter((line) => {
+      if (line.trimStart().startsWith("```")) fenced = !fenced;
+      return !fenced && line.startsWith("## ");
+    })
+    .map((line) => {
+      const title = line.slice(3).trim();
+      const id = title
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, "") // ASCII headings only; github-slugger also keeps non-Latin letters
+        .replace(/\s/g, "-");
+      return { id, title };
+    });
+}

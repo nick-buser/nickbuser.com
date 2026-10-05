@@ -5,8 +5,18 @@ schemas in `src/lib/content.ts` — a malformed post fails the build.
 
 ## Collections
 
-- **`work`** — project case studies (richer frontmatter).
-- **`writing`** — notes and essays.
+- **`work`** — project case studies (richer frontmatter). Index at `/work`
+  ("Case studies"), detail at `/work/<slug>`.
+- **`writing`** — notes and essays, served as the blog at `/blog` and
+  `/blog/<slug>` (the old `/writing` paths redirect).
+
+Projects themselves are not MDX: they are typed rows in `src/lib/projects.ts`,
+each with a `category` (`platform` | `software` | `modelling` | `essay`). Platform
+work leads the home page, software and formal modelling fill the project table
+under it, and visual essays get their own page at `/visual-essays`. A project
+row can point into a case study with `caseStudy: "<slug>"` or
+`"<slug>#<section-id>"`. There is deliberately no tag filtering — the table
+filters on category, status, and which links a project has.
 
 ## Frontmatter
 

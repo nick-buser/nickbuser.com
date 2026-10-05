@@ -7,13 +7,17 @@ export const site = {
   shortName: "nickbuser",
   url: "https://nickbuser.com",
   description:
-    "Engineer. Interactive writeups and project case studies on systems, data, and visualization.",
+    "Platform engineering — a self-hosted internal developer platform, built and run end to end — plus software, formal models, and visual essays.",
+  /** The one line under the name on the home masthead. */
+  lede: "Platform and infrastructure engineering — a self-hosted internal developer platform, built and run end to end — alongside software projects and formal models.",
   author: {
     name: "Nick Buser",
   },
   nav: [
     { title: "Work", href: "/" },
-    { title: "Writing", href: "/writing" },
+    { title: "Case studies", href: "/work" },
+    { title: "Visual essays", href: "/visual-essays" },
+    { title: "Blog", href: "/blog" },
     { title: "About", href: "/about" },
   ],
   socials: {

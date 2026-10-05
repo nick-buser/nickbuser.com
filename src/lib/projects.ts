@@ -1,16 +1,20 @@
 /**
- * Selected work shown on the home masthead.
+ * Every project on the site, in curated order.
  *
  * Real projects only — plain descriptions, real stacks, real links. No invented
  * metrics, no first-person editorializing. This is the typed source the home
- * page renders from; the MDX content layer (`lib/content.ts`) drives the /work
- * index and case-study detail pages.
+ * page, the project table, and the visual-essays page render from; the MDX
+ * content layer (`lib/content.ts`) drives the case studies and the blog.
  */
 
-export type ProjectStatus = "Live" | "Running" | "Built";
+export type ProjectStatus = "Live" | "Running" | "Built" | "In progress";
 
-/** Which bench a project sits on. Drives the grouping on the work page. */
-export type ProjectSection = "essays" | "local" | "deployed";
+/**
+ * What kind of work a project is. Drives where it sits on the site: platform
+ * work leads the home page, software and formal modelling fill the project
+ * table under it, and visual essays get their own page.
+ */
+export type ProjectCategory = "platform" | "software" | "modelling" | "essay";
 
 export interface Project {
   title: string;
@@ -18,75 +22,118 @@ export interface Project {
   result: string;
   stack: string[];
   status: ProjectStatus;
-  section: ProjectSection;
+  category: ProjectCategory;
   links: { live?: string; repo?: string };
-  /** slug of an in-site case study under /work, if one exists */
+  /**
+   * Path of an in-site case study under /work, if one covers it — a slug, or a
+   * slug plus `#section` when the project is one part of a larger writeup.
+   */
   caseStudy?: string;
 }
 
-/** Section titles, in display order. */
-export const SECTIONS: { id: ProjectSection; title: string }[] = [
-  { id: "essays", title: "Visual essays" },
-  { id: "local", title: "Local development" },
-  { id: "deployed", title: "Deployed services" },
+/** Category labels, in display (and sort) order. */
+export const CATEGORIES: { id: ProjectCategory; title: string }[] = [
+  { id: "platform", title: "Platform" },
+  { id: "software", title: "Software" },
+  { id: "modelling", title: "Formal modelling" },
+  { id: "essay", title: "Visual essay" },
 ];
+
+export function categoryTitle(id: ProjectCategory): string {
+  return CATEGORIES.find((c) => c.id === id)?.title ?? id;
+}
 
 /** A "live" register (verdigris dot) vs a "complete" register (brass). */
 export function isLive(status: string): boolean {
   return /live|running/i.test(status);
 }
 
+/** Badge tone for a status: live/running glow, built is complete, the rest wait. */
+export function statusTone(status: ProjectStatus): "positive" | "complete" | "pending" {
+  if (isLive(status)) return "positive";
+  return status === "Built" ? "complete" : "pending";
+}
+
+export function projectsIn(...categories: ProjectCategory[]): Project[] {
+  return projects.filter((p) => categories.includes(p.category));
+}
+
 export const projects: Project[] = [
-  {
-    title: "Whale Talk",
-    result:
-      "An interactive visual essay on how whales — and animals more broadly — communicate, read by moving through it.",
-    stack: ["html / css / js", "cloudflare workers"],
-    status: "Live",
-    section: "essays",
-    links: {
-      live: "https://whale-talk.nicholas-buser.workers.dev/",
-      repo: "https://github.com/nick-buser/whale-talk",
-    },
-  },
-  {
-    title: "GLP-1 Brain Atlas",
-    result:
-      "An interactive mechanism atlas over the GLP-1 drug literature, with every claim carrying its provenance, scope, and confidence.",
-    stack: ["react", "typescript", "react flow", "molstar", "cloudflare"],
-    status: "Live",
-    section: "essays",
-    links: {
-      live: "https://glp1-brain-effect-exploration.nicholas-buser.workers.dev/",
-      repo: "https://github.com/nick-buser/glp1_brain_impact_exploration",
-    },
-  },
-  {
-    title: "Space of Reasons",
-    result:
-      "A formal workbench for Brandom’s inferentialism — a deontic scorekeeper tracking commitments and entitlements across perspectives.",
-    stack: ["ocaml", "dune", "menhir", "qcheck"],
-    status: "Built",
-    section: "local",
-    links: { repo: "https://github.com/nick-buser/brandomian-space-of-reasons" },
-  },
+  // ── Platform ──────────────────────────────────────────────────────────────
   {
     title: "The Homelab",
     result:
       "A self-hosted internal developer platform on my own hardware: git push an app and it builds, deploys, and serves on the LAN.",
     stack: ["proxmox", "terraform", "ansible", "postgres", "caddy"],
     status: "Running",
-    section: "local",
+    category: "platform",
     links: { repo: "https://github.com/nick-buser/homelab-template" },
     caseStudy: "the-homelab",
   },
+  {
+    title: "k3s GitOps Cluster",
+    result:
+      "A three-node k3s cluster driven entirely from one Git repo — Argo CD syncs on push, and policy, backups, encrypted secrets, and GPU inference tenants are all declared there.",
+    stack: ["k3s", "argo cd", "helm", "sops", "kyverno", "velero", "vllm"],
+    status: "Running",
+    category: "platform",
+    links: {},
+  },
+  {
+    title: "labctl",
+    result:
+      "The homelab’s operator CLI: contract-first Postgres and Kafka credentials, deploys in dependency order, and one-command GitOps onboarding for a new tenant.",
+    stack: ["python", "typer", "terraform", "ansible", "pytest"],
+    status: "Built",
+    category: "platform",
+    links: {},
+  },
+  {
+    title: "Fleet Event Spine",
+    result:
+      "Services publish domain events into Redpanda through a transactional outbox, with Debezium doing change-data-capture and a versioned JSON Schema envelope as the contract.",
+    stack: ["redpanda", "debezium", "postgres", "json schema"],
+    status: "Running",
+    category: "platform",
+    links: {},
+    caseStudy: "the-homelab#the-event-log",
+  },
+  {
+    title: "Firmware Provenance Pipeline",
+    result:
+      "The same CI builds ESP32 firmware and FPGA bitstreams: each artifact is content-addressed by its commit, indexed in Postgres, and hash-verified on the device before it flashes.",
+    stack: ["rust", "esp32", "woodpecker", "garage s3", "postgres", "mqtt"],
+    status: "Built",
+    category: "platform",
+    links: {},
+    caseStudy: "the-homelab#the-bench-firmware-that-proves-where-it-came-from",
+  },
+  {
+    title: "Homelab Map",
+    result:
+      "A read-only map of the whole homelab, generated by parsing the Terraform, Ansible, and Argo CD sources — so it cannot drift from what is declared.",
+    stack: ["react", "vite", "typescript", "zod"],
+    status: "Running",
+    category: "platform",
+    links: {},
+  },
+  {
+    title: "tmux-agent",
+    result:
+      "A control plane for coding agents — tmux sessions over HTTP, an MCP server, a project-management CLI, and a loop harness — deployed as a tenant on the k3s cluster.",
+    stack: ["go", "react", "typescript", "openapi", "mcp"],
+    status: "Built",
+    category: "platform",
+    links: {},
+  },
+  // ── Software ──────────────────────────────────────────────────────────────
   {
     title: "Philosophy Explorer",
     result:
       "A full-stack explorer of notes and visualizations across thinkers and works, with an optional Lean 4 proof-checking seam.",
     stack: ["hono", "drizzle", "postgres", "react", "lean 4"],
     status: "Live",
-    section: "deployed",
+    category: "software",
     links: {
       live: "https://philosophy-explorer.pages.dev/logic",
       repo: "https://github.com/nick-buser/philosophy_explorer",
@@ -98,47 +145,11 @@ export const projects: Project[] = [
       "Interactive grammar instruments for language study — drag a sentence apart, turn a register dial, swap a particle, and the grammar answers back.",
     stack: ["react", "vite", "web audio"],
     status: "Live",
-    section: "deployed",
+    category: "software",
     links: {
       live: "https://language-learn-38r.pages.dev/",
       repo: "https://github.com/nick-buser/language-learn",
     },
-  },
-  {
-    title: "Math Explorer",
-    result:
-      "An interactive explorer for mathematical ideas, built to be understood by moving through them.",
-    stack: ["cloudflare"],
-    status: "Live",
-    section: "essays",
-    links: { live: "https://math-explorer.nicholas-buser.workers.dev/" },
-  },
-  {
-    title: "Physics Explorer",
-    result:
-      "An interactive explorer for physical systems, learned by direct manipulation.",
-    stack: ["cloudflare"],
-    status: "Live",
-    section: "essays",
-    links: { live: "https://physics-explorer.nicholas-buser.workers.dev/" },
-  },
-  {
-    title: "Computational Neuroscience Explorer",
-    result:
-      "An interactive explorer of computational-neuroscience models — neurons and networks you can probe.",
-    stack: ["cloudflare"],
-    status: "Live",
-    section: "essays",
-    links: { live: "https://comp-neuro-explorer.nicholas-buser.workers.dev/" },
-  },
-  {
-    title: "Circadian Entrainment",
-    result:
-      "An interactive model of circadian entrainment: how a biological clock locks onto light and other cues.",
-    stack: ["react", "typescript", "cloudflare"],
-    status: "Live",
-    section: "deployed",
-    links: { live: "https://circadian-entrainment.nicholas-buser.workers.dev/" },
   },
   {
     title: "Five Towers",
@@ -146,7 +157,7 @@ export const projects: Project[] = [
       "A browser strategy game built around its own ruleset and win condition.",
     stack: ["typescript", "vercel"],
     status: "Live",
-    section: "deployed",
+    category: "software",
     links: { live: "https://five-towers-web.vercel.app/" },
   },
   {
@@ -155,7 +166,87 @@ export const projects: Project[] = [
       "A full-stack pantry and cooking tracker, instrumented end to end with OpenTelemetry.",
     stack: ["vercel", "opentelemetry"],
     status: "Live",
-    section: "deployed",
+    category: "software",
     links: { live: "https://cooking-and-pantry-tracker-web.vercel.app/" },
+  },
+  // ── Formal modelling ──────────────────────────────────────────────────────
+  {
+    title: "Space of Reasons",
+    result:
+      "A formal workbench for Brandom’s inferentialism — a deontic scorekeeper tracking commitments and entitlements across perspectives.",
+    stack: ["ocaml", "dune", "menhir", "qcheck"],
+    status: "Built",
+    category: "modelling",
+    links: { repo: "https://github.com/nick-buser/brandomian-space-of-reasons" },
+  },
+  {
+    title: "State-Space Workbench",
+    result:
+      "A batch-first workbench for treating heterogeneous formalisms — TLA+, Lean, z3, egglog, Maude — as transition systems behind one kernel-owned contract, each tool wrapped as a JSON-RPC adapter.",
+    stack: ["python", "json-rpc", "emacs lisp"],
+    status: "In progress",
+    category: "modelling",
+    links: {},
+  },
+  {
+    title: "Circadian Entrainment",
+    result:
+      "An interactive model of circadian entrainment: how a biological clock locks onto light and other cues.",
+    stack: ["react", "typescript", "cloudflare"],
+    status: "Live",
+    category: "modelling",
+    links: { live: "https://circadian-entrainment.nicholas-buser.workers.dev/" },
+  },
+  // ── Visual essays ─────────────────────────────────────────────────────────
+  {
+    title: "Whale Talk",
+    result:
+      "An interactive visual essay on how whales — and animals more broadly — communicate, read by moving through it.",
+    stack: ["html / css / js", "cloudflare workers"],
+    status: "Live",
+    category: "essay",
+    links: {
+      live: "https://whale-talk.nicholas-buser.workers.dev/",
+      repo: "https://github.com/nick-buser/whale-talk",
+    },
+  },
+  {
+    title: "GLP-1 Brain Atlas",
+    result:
+      "An interactive mechanism atlas over the GLP-1 drug literature, with every claim carrying its provenance, scope, and confidence.",
+    stack: ["react", "typescript", "react flow", "molstar", "cloudflare"],
+    status: "Live",
+    category: "essay",
+    links: {
+      live: "https://glp1-brain-effect-exploration.nicholas-buser.workers.dev/",
+      repo: "https://github.com/nick-buser/glp1_brain_impact_exploration",
+    },
+  },
+  {
+    title: "Math Explorer",
+    result:
+      "An interactive explorer for mathematical ideas, built to be understood by moving through them.",
+    stack: ["cloudflare"],
+    status: "Live",
+    category: "essay",
+    links: { live: "https://math-explorer.nicholas-buser.workers.dev/" },
+  },
+  {
+    title: "Physics Explorer",
+    result:
+      "An interactive explorer for physical systems, learned by direct manipulation.",
+    stack: ["cloudflare"],
+    status: "Live",
+    category: "essay",
+    links: { live: "https://physics-explorer.nicholas-buser.workers.dev/" },
+  },
+  {
+    title: "Computational Neuroscience Explorer",
+    result:
+      "An interactive explorer of computational-neuroscience models — neurons and networks you can probe.",
+    stack: ["cloudflare"],
+    status: "Live",
+    category: "essay",
+    links: { live: "https://comp-neuro-explorer.nicholas-buser.workers.dev/" },
   },
 ];

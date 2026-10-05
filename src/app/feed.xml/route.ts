@@ -15,7 +15,7 @@ function escapeXml(value: string): string {
 export function GET() {
   const items = getAllWriting()
     .map((d) => {
-      const url = `${site.url}/writing/${d.slug}`;
+      const url = `${site.url}/blog/${d.slug}`;
       return `    <item>
       <title>${escapeXml(d.frontmatter.title)}</title>
       <link>${url}</link>
