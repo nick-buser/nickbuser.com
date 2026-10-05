@@ -1346,6 +1346,91 @@ a.nb-dt__title:hover {
   color: var(--brass);
 }
 
+/* ---- Writeup versions — the ledger in the header, and the notice on a snapshot ---- */
+.nb-versions {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.nb-versions__label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--muted-foreground);
+}
+.nb-versions__list {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.nb-versions__item {
+  display: grid;
+  grid-template-columns: 2.25rem 6.75rem minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  align-items: baseline;
+}
+.nb-versions__num,
+.nb-versions__date,
+.nb-versions__here {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.nb-versions__num {
+  color: var(--brass);
+}
+.nb-versions__date,
+.nb-versions__here {
+  color: var(--muted-foreground);
+}
+.nb-versions__here {
+  opacity: 0.6;
+}
+.nb-versions__note {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+@media (max-width: 640px) {
+  .nb-versions__item {
+    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  }
+  .nb-versions__note {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+}
+
+.nb-version-notice {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: 28px;
+  padding: var(--space-3) var(--space-4);
+  border-left: var(--rule-width-bold) solid var(--brass);
+  background: var(--surface);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.nb-version-notice p {
+  margin: 0;
+}
+.nb-version-notice strong {
+  font-weight: var(--weight-semibold);
+  color: var(--foreground);
+}
+.nb-version-notice .nb-extlink {
+  justify-self: start;
+}
+
 /* ---- Reading nav — top progress rule + sticky margin table of contents ---- */
 .nb-readbar {
   position: fixed;
