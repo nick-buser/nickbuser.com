@@ -71,6 +71,9 @@ export function PostIndex({ posts }: { posts: PostEntry[] }) {
   const toggle = (group: string, value: string) =>
     setSelection((sel) => toggleFacet(sel, group, value));
 
+  // Nothing to search or filter yet — say so, without controls over nothing.
+  if (posts.length === 0) return <p className="nb-empty">No posts yet.</p>;
+
   return (
     <div>
       <IndexToolbar
@@ -90,7 +93,7 @@ export function PostIndex({ posts }: { posts: PostEntry[] }) {
         selection={selection}
         onToggle={toggle}
       />
-      {posts.length > 0 && shown.length === 0 ? (
+      {shown.length === 0 ? (
         <IndexEmpty
           onReset={() => {
             setQuery("");

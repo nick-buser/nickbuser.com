@@ -608,6 +608,11 @@ hr {
   list-style: none;
   line-height: 1.35;
 }
+.nb-elsewhere__empty {
+  margin: 0 0 16px;
+  font-style: italic;
+  color: var(--muted-foreground);
+}
 .nb-elsewhere__list a {
   color: var(--foreground);
   text-decoration: none;
@@ -622,7 +627,7 @@ hr {
   }
 }
 
-/* ---- Index pages — header and the long-form ledger ---- */
+/* ---- Index pages — header and the writeup/post ledger ---- */
 .nb-pagehead {
   padding: 64px 0 var(--space-7);
 }

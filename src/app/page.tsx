@@ -73,7 +73,7 @@ export default function Home() {
         <div>
           <SectionLabel>Writeups</SectionLabel>
           <p className="nb-elsewhere__lead">
-            Long-form writeups of how the work fits together.
+            {site.writeupsLead}
           </p>
           <ul className="nb-elsewhere__list">
             {writeups.map((d) => (
@@ -90,15 +90,19 @@ export default function Home() {
         <div>
           <SectionLabel>Blog</SectionLabel>
           <p className="nb-elsewhere__lead">{site.blogLead}</p>
-          <ul className="nb-elsewhere__list">
-            {posts.slice(0, 4).map((d) => (
-              <li key={d.slug}>
-                <Link href={`/blog/${d.slug}`}>{d.frontmatter.title}</Link>
-              </li>
-            ))}
-          </ul>
+          {posts.length ? (
+            <ul className="nb-elsewhere__list">
+              {posts.slice(0, 4).map((d) => (
+                <li key={d.slug}>
+                  <Link href={`/blog/${d.slug}`}>{d.frontmatter.title}</Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="nb-elsewhere__empty">No posts yet.</p>
+          )}
           <Link href="/blog" className="nb-extlink">
-            All posts →
+            {posts.length ? "All posts →" : "Blog →"}
           </Link>
         </div>
       </section>

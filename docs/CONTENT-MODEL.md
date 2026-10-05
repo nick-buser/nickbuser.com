@@ -5,10 +5,12 @@ schemas in `src/lib/content.ts` — a malformed post fails the build.
 
 ## Collections
 
-- **`work`** — project writeups (richer frontmatter). Index at `/work`
-  ("Writeups"), detail at `/work/<slug>`.
-- **`writing`** — notes and essays, served as the blog at `/blog` and
-  `/blog/<slug>` (the old `/writing` paths redirect).
+The two collections split by **subject, not length**:
+
+- **`work`** — writeups, each about one of the projects (richer frontmatter).
+  Index at `/work` ("Writeups"), detail at `/work/<slug>`.
+- **`writing`** — the blog: posts on ideas rather than projects, at `/blog`
+  and `/blog/<slug>` (the old `/writing` paths redirect). Empty for now.
 
 Projects themselves are not MDX: they are typed rows in `src/lib/projects.ts`,
 each with a `category` (`platform` | `software` | `modelling` | `essay`). Platform,

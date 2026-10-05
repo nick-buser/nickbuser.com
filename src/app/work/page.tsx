@@ -3,11 +3,11 @@ import { getAllWork } from "@/lib/content";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/page-header";
 import { DocList } from "@/components/doc-list";
+import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Writeups",
-  description:
-    "Long-form writeups of how the work fits together — architecture, trade-offs, and the decisions behind them.",
+  description: site.writeupsLead,
 };
 
 /**
@@ -21,7 +21,7 @@ export default function Writeups() {
       <PageHeader
         eyebrow="Writeups"
         title="How the work fits together"
-        lead="Long-form writeups of the larger projects — architecture, trade-offs, and the decisions I’d defend — with live diagrams where a picture carries the argument."
+        lead={site.writeupsLead}
       />
       <DocList
         items={writeups.map((d) => ({

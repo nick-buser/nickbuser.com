@@ -11,7 +11,7 @@ export interface DocListItem {
 }
 
 /**
- * DocList — the ledger of long-form pieces. A mono readout in the left margin,
+ * DocList — the ledger of writeups and posts. A mono readout in the left margin,
  * the title in Fraunces and its description in Spectral on the right, each
  * entry closed by a hairline. Collapses to a single column on narrow screens.
  */
