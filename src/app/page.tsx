@@ -1,14 +1,11 @@
 import Link from "next/link";
 import { site } from "@/lib/site";
-import { projectsIn } from "@/lib/projects";
+import { CATEGORIES, HOME_TOPICS, projectsIn } from "@/lib/projects";
 import { getAllWork, getAllWriting } from "@/lib/content";
 import { ExtLink, SectionLabel } from "@/components/ui";
 import { ProjectCard } from "@/components/project-card";
-import { ProjectTable } from "@/components/project-table";
 
 export default function Home() {
-  const platform = projectsIn("platform");
-  const built = projectsIn("software", "modelling");
   const essays = projectsIn("essay");
   const studies = getAllWork();
   const posts = getAllWriting();
@@ -27,43 +24,33 @@ export default function Home() {
 
       <hr className="nb-rule" style={{ margin: "8px 0 var(--space-7)" }} />
 
-      {/* ── Platform — the topic the work clusters around, wherever it runs ── */}
-      <section className="nb-home-section" aria-labelledby="platform">
-        <div className="nb-home-head">
-          <h2 id="platform" className="nb-home-head__title">
-            Platform
-          </h2>
-          <p className="nb-home-head__lead">
-            Infrastructure, delivery, and developer tooling — the systems other
-            software is built, shipped, and run on.
-          </p>
-        </div>
-        <div className="nb-cards">
-          {platform.map((p) => (
-            <ProjectCard key={p.title} project={p} />
-          ))}
-        </div>
-      </section>
-
-      {/* ── Software & formal modelling — the searchable index ───────────── */}
-      <section className="nb-home-section" aria-labelledby="built">
-        <div className="nb-home-head">
-          <h2 id="built" className="nb-home-head__title">
-            Software &amp; formal modelling
-          </h2>
-          <p className="nb-home-head__lead">
-            Full-stack applications, and formal models of reasoning and dynamics.
-          </p>
-        </div>
-        <ProjectTable projects={built} caption="Software and formal-modelling projects" />
-      </section>
+      {/* ── Topics — platform first, then software, then formal modelling.
+             One format for all three: a heading, a lead, two-column cards. ── */}
+      {HOME_TOPICS.map((id) => {
+        const topic = CATEGORIES.find((c) => c.id === id)!;
+        return (
+          <section key={id} className="nb-home-section" aria-labelledby={id}>
+            <div className="nb-home-head">
+              <h2 id={id} className="nb-home-head__title">
+                {topic.title}
+              </h2>
+              <p className="nb-home-head__lead">{topic.lead}</p>
+            </div>
+            <div className="nb-cards">
+              {projectsIn(id).map((p) => (
+                <ProjectCard key={p.title} project={p} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
 
       {/* ── Elsewhere — the rest of the site, off to the side ────────────── */}
       <section className="nb-home-section nb-elsewhere" aria-label="Elsewhere on the site">
         <div>
           <SectionLabel>Visual essays</SectionLabel>
           <p className="nb-elsewhere__lead">
-            Interactive explorables, read by moving through them.
+            {CATEGORIES.find((c) => c.id === "essay")!.lead}
           </p>
           <ul className="nb-elsewhere__list">
             {essays.map((p) => (

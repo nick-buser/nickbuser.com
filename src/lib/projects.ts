@@ -12,8 +12,8 @@ export type ProjectStatus = "Live" | "Running" | "Built" | "In progress";
 /**
  * The topic a project is clustered under — the kind of work, never where it
  * runs (an AWS platform project is "platform" exactly as the homelab is).
- * Platform leads the home page, software and formal modelling fill the table
- * under it, and visual essays get their own page.
+ * Platform, software, and formal modelling are the home page's card sections,
+ * in that order; visual essays get their own page.
  *
  * A project is program-sized: something with its own goal. The parts of one —
  * a deploy path, a database setup, an operator CLI — are described inside it,
@@ -43,12 +43,27 @@ export interface Project {
 }
 
 /** Category labels, in display (and sort) order. */
-export const CATEGORIES: { id: ProjectCategory; title: string }[] = [
-  { id: "platform", title: "Platform" },
-  { id: "software", title: "Software" },
-  { id: "modelling", title: "Formal modelling" },
-  { id: "essay", title: "Visual essay" },
+export const CATEGORIES: { id: ProjectCategory; title: string; lead: string }[] = [
+  {
+    id: "platform",
+    title: "Platform",
+    lead: "Infrastructure, delivery, and developer tooling — the systems other software is built, shipped, and run on.",
+  },
+  { id: "software", title: "Software", lead: "Full-stack applications." },
+  {
+    id: "modelling",
+    title: "Formal modelling",
+    lead: "Formal models of reasoning and dynamics.",
+  },
+  {
+    id: "essay",
+    title: "Visual essay",
+    lead: "Interactive explorables, read by moving through them.",
+  },
 ];
+
+/** The topics the home page sets out as card sections, in order. */
+export const HOME_TOPICS: ProjectCategory[] = ["platform", "software", "modelling"];
 
 export function categoryTitle(id: ProjectCategory): string {
   return CATEGORIES.find((c) => c.id === id)?.title ?? id;

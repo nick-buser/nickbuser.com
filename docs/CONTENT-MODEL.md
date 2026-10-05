@@ -11,9 +11,10 @@ schemas in `src/lib/content.ts` — a malformed post fails the build.
   `/blog/<slug>` (the old `/writing` paths redirect).
 
 Projects themselves are not MDX: they are typed rows in `src/lib/projects.ts`,
-each with a `category` (`platform` | `software` | `modelling` | `essay`). Platform
-work leads the home page, software and formal modelling fill the project table
-under it, and visual essays get their own page at `/visual-essays`. A project
+each with a `category` (`platform` | `software` | `modelling` | `essay`). Platform,
+software, and formal modelling are the home page's sections, in that order,
+each as two-column cards (`HOME_TOPICS`); visual essays get their own page at
+`/visual-essays`, which keeps the searchable table. A project
 row can point into a case study with `caseStudy: "<slug>"` or
 `"<slug>#<section-id>"`.
 
