@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { site } from "@/lib/site";
-import { GROUPS, projectsIn } from "@/lib/projects";
+import { projectsIn } from "@/lib/projects";
 import { getAllWork, getAllWriting } from "@/lib/content";
 import { ExtLink, SectionLabel } from "@/components/ui";
 import { ProjectCard } from "@/components/project-card";
@@ -27,7 +27,7 @@ export default function Home() {
 
       <hr className="nb-rule" style={{ margin: "8px 0 var(--space-7)" }} />
 
-      {/* ── Platform — a topic, grouped by the body of work each system sits in ── */}
+      {/* ── Platform — the topic the work clusters around, wherever it runs ── */}
       <section className="nb-home-section" aria-labelledby="platform">
         <div className="nb-home-head">
           <h2 id="platform" className="nb-home-head__title">
@@ -35,52 +35,14 @@ export default function Home() {
           </h2>
           <p className="nb-home-head__lead">
             Infrastructure, delivery, and developer tooling — the systems other
-            software is built, shipped, and observed on.
+            software is built, shipped, and run on.
           </p>
         </div>
-
-        {GROUPS.map((g) => {
-          const items = platform.filter((p) => p.group === g.id);
-          if (!items.length) return null;
-          return (
-            <section key={g.id} className="nb-group" aria-labelledby={`group-${g.id}`}>
-              <div className="nb-group__head">
-                <h3 id={`group-${g.id}`} className="nb-group__title">
-                  {g.title}
-                </h3>
-                <p className="nb-group__blurb">{g.blurb}</p>
-                {g.caseStudy || g.links?.repo ? (
-                  <div className="nb-group__links">
-                    {g.caseStudy ? (
-                      <Link href={`/work/${g.caseStudy}`} className="nb-extlink">
-                        Case study →
-                      </Link>
-                    ) : null}
-                    {g.links?.repo ? (
-                      <ExtLink href={g.links.repo}>Template repo</ExtLink>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-              <div className="nb-cards">
-                {items.map((p) => (
-                  <ProjectCard key={p.title} project={p} heading="h4" />
-                ))}
-              </div>
-            </section>
-          );
-        })}
-
-        {/* anything not yet placed in a group still shows, just without a head */}
-        {platform.some((p) => !p.group) ? (
-          <div className="nb-cards nb-group">
-            {platform
-              .filter((p) => !p.group)
-              .map((p) => (
-                <ProjectCard key={p.title} project={p} />
-              ))}
-          </div>
-        ) : null}
+        <div className="nb-cards">
+          {platform.map((p) => (
+            <ProjectCard key={p.title} project={p} />
+          ))}
+        </div>
       </section>
 
       {/* ── Software & formal modelling — the searchable index ───────────── */}

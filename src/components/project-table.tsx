@@ -293,6 +293,7 @@ export function ProjectTable({
                 ) : null}
                 {p.links.live ? <ExtLink href={p.links.live}>Live</ExtLink> : null}
                 {p.links.repo ? <ExtLink href={p.links.repo}>Source</ExtLink> : null}
+                {p.links.template ? <ExtLink href={p.links.template}>Template</ExtLink> : null}
               </td>
             </tr>
           ))}

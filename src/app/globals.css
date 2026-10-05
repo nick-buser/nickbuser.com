@@ -586,35 +586,6 @@ hr {
   line-height: var(--leading-ui);
 }
 
-/* a group within a topic — the shared context (what the body of work is,
-   where it's written up) set once above the projects that belong to it */
-.nb-group + .nb-group {
-  margin-top: var(--space-7);
-}
-.nb-group__head {
-  margin-bottom: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid color-mix(in oklch, var(--rule-warm) 60%, transparent);
-}
-.nb-group__title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-variation-settings: "opsz" 72;
-  font-weight: var(--weight-semibold);
-}
-.nb-group__blurb {
-  margin: 8px 0 0;
-  max-width: var(--measure);
-  line-height: var(--leading-ui);
-  color: var(--muted-foreground);
-}
-.nb-group__links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 22px;
-  margin-top: 12px;
-}
-
 /* elsewhere — the rest of the site, set to one side in three quiet columns */
 .nb-elsewhere {
   display: grid;

@@ -8,18 +8,11 @@ import { statusTone, type Project } from "@/lib/projects";
  * chips, and the case-study/live/source links sitting below a quiet rule. A
  * project with no public source says so, rather than leaving the rule bare.
  */
-export function ProjectCard({
-  project,
-  heading: Heading = "h3",
-}: {
-  project: Project;
-  /** Heading level for the title — h4 when the card sits under a group heading. */
-  heading?: "h3" | "h4";
-}) {
+export function ProjectCard({ project }: { project: Project }) {
   return (
     <article className="nb-card">
       <div className="nb-card__head">
-        <Heading className="nb-card__title">{project.title}</Heading>
+        <h3 className="nb-card__title">{project.title}</h3>
         <Badge tone={statusTone(project.status)}>{project.status}</Badge>
       </div>
 
@@ -39,6 +32,9 @@ export function ProjectCard({
         ) : null}
         {project.links.live ? (
           <ExtLink href={project.links.live}>Live</ExtLink>
+        ) : null}
+        {project.links.template ? (
+          <ExtLink href={project.links.template}>Template</ExtLink>
         ) : null}
         {project.links.repo ? (
           <ExtLink href={project.links.repo}>Source</ExtLink>
