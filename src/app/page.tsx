@@ -7,7 +7,7 @@ import { ProjectCard } from "@/components/project-card";
 
 export default function Home() {
   const essays = projectsIn("essay");
-  const studies = getAllWork();
+  const writeups = getAllWork();
   const posts = getAllWriting();
 
   return (
@@ -76,7 +76,7 @@ export default function Home() {
             Long-form writeups of how the work fits together.
           </p>
           <ul className="nb-elsewhere__list">
-            {studies.map((d) => (
+            {writeups.map((d) => (
               <li key={d.slug}>
                 <Link href={`/work/${d.slug}`}>{d.frontmatter.title}</Link>
               </li>

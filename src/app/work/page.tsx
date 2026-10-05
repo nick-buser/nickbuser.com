@@ -14,8 +14,8 @@ export const metadata: Metadata = {
  * The writeup index. Every writeup under content/work lands here, so a writeup
  * is never reachable only from the project card that links to it.
  */
-export default function CaseStudies() {
-  const studies = getAllWork();
+export default function Writeups() {
+  const writeups = getAllWork();
   return (
     <div className="nb-wrap nb-settle" style={{ paddingBottom: 96 }}>
       <PageHeader
@@ -24,7 +24,7 @@ export default function CaseStudies() {
         lead="Long-form writeups of the larger projects — architecture, trade-offs, and the decisions I’d defend — with live diagrams where a picture carries the argument."
       />
       <DocList
-        items={studies.map((d) => ({
+        items={writeups.map((d) => ({
           href: `/work/${d.slug}`,
           title: d.frontmatter.title,
           description: d.frontmatter.description,
