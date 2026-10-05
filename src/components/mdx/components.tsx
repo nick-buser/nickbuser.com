@@ -21,6 +21,12 @@ import {
 } from "@/components/islands/ml-diagrams";
 import { StepTimeSvg, OverlapSpeedupSvg } from "@/components/diagrams/ml-charts";
 import {
+  RunEndingsFlow,
+  TrackerFlow,
+  MlTelemetryFlow,
+} from "@/components/islands/ml-v2-diagrams";
+import { PreemptionTimelineSvg } from "@/components/diagrams/ml-v2-charts";
+import {
   OutboxTxnSvg,
   DeviceSinksSvg,
   VizPipelineSvg,
@@ -69,6 +75,10 @@ export const mdxComponents = {
   ExperimentFlow,
   StepTimeSvg,
   OverlapSpeedupSvg,
+  RunEndingsFlow,
+  TrackerFlow,
+  MlTelemetryFlow,
+  PreemptionTimelineSvg,
   OutboxTxnSvg,
   DeviceSinksSvg,
   VizPipelineSvg,
