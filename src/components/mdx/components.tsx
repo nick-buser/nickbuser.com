@@ -15,6 +15,12 @@ import {
   AppOfAppsTree,
 } from "@/components/islands/gitops-diagrams";
 import {
+  GpuAdmissionFlow,
+  GpuQueueTree,
+  ExperimentFlow,
+} from "@/components/islands/ml-diagrams";
+import { StepTimeSvg, OverlapSpeedupSvg } from "@/components/diagrams/ml-charts";
+import {
   OutboxTxnSvg,
   DeviceSinksSvg,
   VizPipelineSvg,
@@ -55,6 +61,11 @@ export const mdxComponents = {
   GitopsTopology,
   GitopsDeliveryFlow,
   AppOfAppsTree,
+  GpuAdmissionFlow,
+  GpuQueueTree,
+  ExperimentFlow,
+  StepTimeSvg,
+  OverlapSpeedupSvg,
   OutboxTxnSvg,
   DeviceSinksSvg,
   VizPipelineSvg,
