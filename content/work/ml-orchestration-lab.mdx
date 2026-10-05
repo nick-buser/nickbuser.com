@@ -1,8 +1,8 @@
 ---
 title: "ML Orchestration Lab"
-description: "GPU scheduling and experiment management on a homelab with one consumer GPU: Kueue for quota, Volcano for gangs, Argo Workflows for submission, a Slurm cluster beside them, a run record that knows how each run ended, and the telemetry and alerts that watch all of it."
+description: "GPU scheduling and experiment management on a homelab with one consumer GPU: Kueue for quota, Volcano for gangs, Argo Workflows for submission, a Slurm cluster beside them, a run record that knows how each run ended, and the telemetry and alerts that watch the cluster and the card."
 date: 2026-10-05
-summary: "GPU scheduling and experiment management at small scale: two batch schedulers, a queue for every kind of GPU work, a run record that knows how each run ended, and measured training runs."
+summary: "GPU scheduling and experiment management at small scale: two batch schedulers, a queue for every kind of GPU work on Kubernetes, a run record that knows how each run ended, and measured training runs."
 role: "Build & operation"
 timeframe: "Ongoing"
 stack:
@@ -20,11 +20,13 @@ described in [The Homelab](/work/the-homelab), and it has one GPU, a 16 GB RTX
 that matter at scale, such as many GPUs, mixed node types and fault injection,
 and that it is oversized for the one card it has.
 
-The work ran in two stretches. At the end of June, while the lab briefly had a
-second GPU, a series of training runs measured data-parallel training across
-two mismatched cards. From late September, a Kubernetes scheduling stack went
-in around the remaining card, along with a pipeline that submits experiments to
-it, a record of how every run ended, and a tracker that shows them.
+Most of the work falls in two stretches, with smaller pieces between them. At
+the end of June, while the lab briefly had a second GPU, a series of training
+runs measured data-parallel training across two mismatched cards, scheduled by
+Volcano. A Slurm cluster went in beside the Kubernetes stack in mid-July. From
+late September, Kueue and Argo Workflows went in around the remaining card,
+along with a pipeline that submits experiments to it, a record of how every run
+ended, and a tracker that shows them.
 
 ## One card, many claimants
 
@@ -50,7 +52,8 @@ These are the claimants:
   12B. Both are scaled to zero by default, and at most one runs at a time.
 - **A GPU notebook**, also scaled to zero until someone needs it.
 - **Experiments and benchmarks**, submitted as Argo workflow steps.
-- **Fine-tuning**, which reserves the whole card while it runs.
+- **Fine-tuning**, which takes all of the general queue's free quota while it
+  runs.
 - **GPU CI**, build steps that run on the card.
 
 There is no autoscaler. An on-demand model sits at zero replicas in git, and an
@@ -59,20 +62,22 @@ count on those Deployments.
 
 ### How the scheduler became the arbiter
 
-Until late September the card was bind-mounted into five containers that no
-scheduler owned, and a shell script called the lease arbitrated between them.
-It stopped the language model before a heavy job and restarted it afterwards.
-Probing the card showed the lease couldn't see everything on it. Two model
-servers sat outside its view, one of them holding 12.4 GB while resident. The
-lease would leave such a server running, report the card free, and the heavy
-job would run out of memory. The lease gained a registry of its tenants, then a
-check that reads which processes actually hold GPU memory, through their
-cgroups, instead of trusting service names.
+Until late September, GPU work ran in five containers that the card is
+bind-mounted into, none of them owned by a scheduler. A shell script called the
+lease arbitrated inside only one of them, the inference container. It stopped
+the language model before a heavy job and restarted it afterwards, and it knew
+two services by name. Other model servers in the same container sat outside its
+view, one of them holding 12.4 GB while resident, and nothing in the other four
+containers was under it at all. The lease would leave such a server running,
+report the card free, and the heavy job would run out of memory. The lease
+gained a registry of its tenants, then a check that reads which processes
+actually hold GPU memory, through their cgroups, instead of trusting service
+names.
 
 The ruling that replaced it said the lease existed only because of that
-topology, and the fix was to remove the topology. Every GPU consumer would
-become a Kubernetes workload, and arbitration would be priority classes, Kueue's
-quota and preemption, and Volcano's gangs. The models moved into the cluster as
+topology, and the fix was to remove the topology. Every GPU consumer would move
+into Kubernetes, arbitrated by priority classes, Kueue's quota and Volcano's
+gangs. The models moved into the cluster as
 Deployments over the following week. The lease's registry has been empty since
 the end of September, and asking it for the card now fails with a message that
 names the Kueue path instead. The lease is still installed, the card is still
@@ -146,14 +151,14 @@ Workloads at the quota level, sometimes before a pod even exists. The case
 where both act on one gang has not been exercised.
 
 Volcano's install file records the trade-off of running it. A second scheduler
-is more to operate, and two schedulers can race to bind the same resource. The
-lighter alternative was the coscheduling plugin. Volcano won on its job
+is more to operate, and two schedulers can race to bind the same resource,
+though neither problem bites on a single GPU node. The lighter alternative was the coscheduling plugin. Volcano won on its job
 launcher, which hands each pod the peer addresses that Gloo training needs to
 rendezvous, and on its fuller set of preemption and fair-share actions.
 
 The June gang and preemption demos ran across two GPU nodes. They were rebuilt
 for one node in early October. With one of the two slices a gang needed free,
-no gang pod started and the gang waited in Volcano's queue. Freeing a second
+no gang pod started, and the gang waited for both. Freeing a second
 slice let both pods start together. In the preemption demo, a high-priority job
 evicted one of three low-priority pods. The rerun also found that the embedding
 model permanently holds a slice, so the demos now size their filler jobs from
@@ -183,8 +188,8 @@ quota of one would have let the cohort admit nine units against eight real
 ones. Five LocalQueues feed the two: resident serving, the on-demand models,
 research, workflow steps, and CI.
 
-This is where the lease's job went. Its rule was a guard in a systemd unit that
-refused to start one model while the other ran. That rule is now a quota.
+Before this, a guard in each model's systemd unit refused to start one
+language model while the other ran. That rule is now a quota.
 
 Each ClusterQueue also covers CPU and memory, because Kueue won't admit a
 workload that requests a resource its queue doesn't cover. Those quotas are
@@ -201,12 +206,13 @@ the model was serving again about two minutes after the Job finished. Kueue
 readmitted the model before the Job reported complete, because quota frees as
 each of the Job's pods finishes.
 
-Fine-tuning used to run in a container outside the cluster. Since early October
-it reserves the card through Kueue as well. A pod can't hold more than one
-slice, so the reservation can't be one pod asking for the whole card. The
-trainer runs on one slice beside a ballast Job that claims the rest, and the
-pair fills the general queue's quota, which reclaims any slice a language model
-has borrowed by the same `InCohortReclamation` path.
+Since late September, fine-tuning has reserved the card through Kueue. Until
+early October the reservation was a placeholder, and the training itself ran in
+a container outside the cluster. A pod can't hold more than one slice, so the
+reservation can't be one pod asking for the whole card. The trainer now runs on
+one slice beside a ballast Job that claims the rest of the general queue's free
+quota, which reclaims the slice the 7B borrows by the same
+`InCohortReclamation` path. The script refuses to start while the 12B is up.
 
 The queues' resource flavor is pinned to the GPU node by hostname as well as by
 label. The second GPU node from June carried the same label and has been
@@ -220,13 +226,14 @@ The large-model queue may borrow up to 12,400 MiB of it, one language model's
 worth at its configured memory share, and the remaining 3,488 MiB is
 guaranteed to the general queue. That accounting is inert today. Every tenant
 still declares zero, the CI check on declarations only warns, and nothing caps
-a process at what it declared. The real guards on memory are each vLLM server's
-memory-utilization setting and its startup check for free memory.
+a process at what it declared. In practice, memory is protected by each vLLM
+server's memory-utilization setting and its refusal to start when too little
+memory is free.
 
 Two alternatives were weighed. Dynamic Resource Allocation with consumable
 capacity is the target. It is alpha and off by default in the installed
-Kubernetes, Kueue and NVIDIA driver, and the NVIDIA DRA driver can't run beside
-the standard device plugin. HAMi was rejected. Its device plugin replaces
+Kubernetes and Kueue and in NVIDIA's DRA driver. That driver isn't installed,
+and it can't run beside the standard device plugin. HAMi was rejected. Its device plugin replaces
 NVIDIA's, its scheduler conflicts with Volcano gangs on a single GPU node, and
 it needs privileges an unprivileged container can't grant.
 
@@ -253,17 +260,17 @@ code if it times out still queued. Its status output prints the pod's Workload,
 the reason it isn't admitted, its position in the queue and the ClusterQueue's
 usage.
 
-The drills are scripts kept in the GitOps repo beside what they test:
-preemption, quota and borrowing, the GPU step template, the webhook scope,
-alert firing, a real node drain, the benchmark reaper and the Volcano demos.
-Each has a read-only preflight mode, and each refuses to start, with a reason,
-when the cluster isn't in the state it expects. The drain drill uncordons the
+The drills are scripts kept in the GitOps repo: preemption, quota and
+borrowing, the GPU step template, the webhook scope, alert firing, a real node
+drain, the benchmark reaper and the Volcano demos. Each refuses to start, with
+a reason, when the cluster isn't in the state it expects, and most have a
+read-only preflight mode. The drain drill uncordons the
 node on every exit path.
 
 ## Submitting GPU work
 
-GPU work enters the cluster through Argo Workflows and two approved templates.
-The single-GPU step template sets the queue label, the priority, a deadline of
+GPU steps in Argo Workflows go through two approved templates. The single-GPU
+step template sets the queue label, the priority, a deadline of
 900 seconds by default, memory of 2 GiB requested and 4 GiB allowed, and a
 retry policy that retries on `OnError` only. A caller can pass a Secret, a
 volume, more memory and a longer deadline. The retry policy covers a pod
@@ -386,7 +393,7 @@ mounted by the cell template since early October.
 
 ## When a run ends
 
-Every way of taking a pod away arrives the same way. Kueue preemption, a node
+Four ways of taking a pod away arrive the same way. Kueue preemption, a node
 drain, a retry of an infrastructure error and a cancel all send SIGTERM, then
 SIGKILL after the thirty-second grace period. The signal doesn't say which one
 it was.
@@ -400,8 +407,8 @@ nothing itself, so it can't deadlock against a database lock the interrupted
 code was holding. The run's context manager closes the row on the way out with
 a compare-and-set on `running`, under a row lock: `cancelled` if a cancel was
 requested first, `interrupted` if not. `failed` keeps its meaning, that the
-code raised or the process died, so a count of failures never includes
-preemptions.
+code raised or the process died, so a preemption that closes its row cleanly
+is never counted as a failure.
 
 A cancel writes its mark on every running row of the workflow before it asks
 Argo to stop the workflow, and it withdraws the marks if that request fails. A
@@ -426,10 +433,10 @@ half minutes, holding Argo's GPU lock while it waited. An interrupted attempt
 keeps whatever it wrote, so a reader that counts results without filtering on
 status counts that cell twice.
 
-One trial can't rule out a race the execution contract records. Kueue puts a
-finalizer on the pods it manages, so a deleted pod's object outlives its
-container for a few seconds. If Argo reads the pod in that window, it sees
-`Failed` with exit code 143, and `OnError` won't retry it. A kubelet eviction
+One trial can't rule out a race the execution contract records. In the drill,
+Kueue's finalizer kept the deleted pod's object around for a few seconds after
+its container exited. If Argo reads the pod in that window, it sees `Failed`
+with exit code 143, and `OnError` won't retry it. A kubelet eviction
 under node memory pressure also leaves a failed pod that wouldn't be retried.
 That path comes from reading Argo's source and hasn't been tested.
 
@@ -437,9 +444,10 @@ A pod killed outright can't close its own row, and neither can study code that
 swallows the exit or an unwind that outlasts the grace period. A reaper runs
 every ten minutes as an Argo CronWorkflow and fails rows that have been silent
 for two hours. Heartbeats aren't periodic. A study beats once per unit of work,
-so the threshold comes from the longest a GPU step can live instead: the
-900-second default deadline can be raised to an hour, and two hours is twice
-that. A false reap costs more than a slow one. With one success allowed per
+so the threshold comes from how long a GPU step is expected to live instead.
+The default deadline is 900 seconds, callers have raised it to an hour, and two
+hours is twice that. A study that needs longer has to raise the reaper's
+threshold too. A false reap costs more than a slow one. With one success allowed per
 key, a wrongly failed row could let a duplicate of a cell that's still running
 start.
 
@@ -467,7 +475,7 @@ that failed to pull, or a process killed before it opened its run. Once Argo's
 archive aged the workflow out two weeks later, nothing showed it had been
 attempted, and planned work had no record anywhere.
 
-<Figure num="Fig. 6" caption="What the tracker reads, and from where. Results come only from the experiment database, which only the study pod writes. Workflow phase is read live from Argo, then from Argo's archive once the live object is gone.">
+<Figure num="Fig. 6" caption="What the tracker reads, and from where. Results come only from the experiment database, and only the study pod writes them. Workflow phase is read live from Argo, then from Argo's archive once the live object is gone.">
   <TrackerFlow />
 </Figure>
 
@@ -540,7 +548,7 @@ showed up in the host series under its pod name. Every emitter is best effort,
 so a collector outage can't block a result from being written. Telemetry is
 for operations only and is never read back as data.
 
-The alerts all go to one Discord channel:
+These alerts go to one Discord channel:
 
 | Alert                        | From                        | Fires on                                       | Fired in a drill |
 | ---------------------------- | --------------------------- | ---------------------------------------------- | ---------------- |
@@ -602,13 +610,14 @@ manual step, since a token is a credential and not configuration.
 
 The GPU partition was created down and has never been up. It stays down so a
 Slurm GPU job can't land next to a language model on the card. The default
-batch partition carries a QOS that refuses any GPU request at submit time, with
-`QOSMaxGRESPerJob`, rather than leaving the job pending. A QOS does the job
+batch partition carries a QOS that refuses any GPU request at submit time, with the
+error `QOSMaxGRESPerJob`, rather than leaving the job pending. A QOS does the job
 because Slurm 24.11 has no partition-level way to deny GPUs. One gap remains. A
 batch job that asks for no GPU at all can still open the card, because the
-device files in the container are world-writable, and cgroup device control
-needs an eBPF attach that an unprivileged container can't make. It closes when
-the card leaves the container.
+device files in the container are world-writable. Cgroup device control would
+need an eBPF attach that an unprivileged container most likely can't make. That
+hasn't been tried, because turning it on risks draining the node. The gap
+closes when the card leaves the container.
 
 In mid-September the plan was to extend these containers and keep Slurm off
 Kubernetes. A week later the lab's goal was restated around patterns that
@@ -628,7 +637,7 @@ build spans both, so gradients moved over Gloo, a CPU collective, across the
 gigabit LAN. From phase 20 the training loop ran its own all-reduce over Gloo,
 flattening gradients to the CPU and weighting each rank by its batch size.
 
-Each phase asked one question and chose one number to answer it:
+Each phase asked one question and chose what to measure to answer it:
 
 | Phase | Question                                         | Measured                               | Result                     |
 | ----- | ------------------------------------------------ | -------------------------------------- | -------------------------- |
@@ -679,7 +688,8 @@ and no loss. The cost was the straggler: the P1000 computed about 13 times
 longer than the 5060 Ti.
 
 **Fixing the straggler.** Phase 20 moved to a real model, a
-3.2-million-parameter character-level GPT with hand-written attention, since
+character-level GPT of about three million parameters with hand-written
+attention, since
 the Pascal build lacks PyTorch's fused attention. Splitting each batch by the
 cards' measured speed, 58 and 6 instead of 32 and 32, cut the waiting from
 42.6% to 9.5% of the step, a 1.28× speedup. That left the all-reduce at about
@@ -758,27 +768,28 @@ those workloads, and every pod died within a second on the node with
 time-sliced card lets a pod hold at most one slice, and Kueue's quota check
 doesn't know that. Every template now hard-codes one slice per pod, and
 anything that needs more of the card runs as several one-slice pods, which is
-also why fine-tuning reserves the card with a ballast Job.
+also why fine-tuning reserves its quota with a ballast Job.
 
 </Incident>
 <Incident title="The model cache passed truncated downloads">
 
 The Job that fills the model cache skipped any model whose `config.json`
 already existed. A download that ran out of memory partway left that file
-behind, so the check passed and the Job moved on. The cluster never held a
-complete set of weights for one of the models: one of its two weight shards
-was missing. The CI cache had the same bug, found the day before. The fill Job
+behind, so the check passed and the Job moved on. Neither cached model had
+complete weights. One was missing one of its two weight shards, and the other
+had none. The CI cache had the same bug, found the day before. The fill Job
 now requires every shard listed in the model's index and no partial blobs, and
 it has three times the memory.
 
 </Incident>
-<Incident title="A new GPU CI agent picked up other repos' builds">
+<Incident title="A new GPU CI agent picked up builds it wasn't meant for">
 
 A CI agent that runs build steps as pods in the cluster went in to give the
 experiment repo a GPU test lane. Steps without an agent label can run on any
-agent, so it started taking other repositories' steps, and Kyverno rejected
-those pods for missing resource requests or images from unapproved registries.
-Every unlabelled step on the shared CI server was at risk. The agent was scaled
+agent, so it started taking the experiment repo's ordinary CPU pipelines, and
+Kyverno rejected those pods for missing resource requests or images from
+unapproved registries. Any unlabelled step on the shared CI server could have
+landed there the same way. The agent was scaled
 to zero, and Argo CD's self-heal put it back at least twice. The fix gave the
 CI namespace default resource requests and one narrow registry exception for
 the CI's own git plugin, and the experiment repo's other pipelines were
@@ -788,8 +799,9 @@ labelled to stay on the Docker agent.
 <Incident title="Argo CD's self-heal undid manual fixes">
 
 Self-heal applies what git says, which includes undoing what an operator just
-did. It reverted a `kubectl scale` to zero within about a minute, during an
-alert drill and again while pausing the CI agent above. It also kept a failing
+did. It reverted a `kubectl scale` to zero within about a minute during an
+alert drill, and did it at least twice more while the CI agent above was being
+paused. It also kept a failing
 Job alive. A cache fill for a gated model failed on a 403, the Job's time to
 live deleted it every ten minutes, and self-heal recreated it each time. The
 model came out of the fill list until its licence was accepted. Drills now fake
@@ -803,8 +815,8 @@ The first pushes of the 4.4 GB lab image to the registry failed when Traefik's
 into eight smaller layers didn't help, because buildx uploads layers in
 parallel and each upload still ran past the limit. The timeout went up to 30
 minutes. Later, pushes that ran 30.1 to 30.5 minutes failed the same way, so it
-went to 45 minutes, a value picked over longer ones to limit
-exposure to slow-client attacks.
+went to 45 minutes, a value picked over longer ones to limit exposure to
+slow-client attacks.
 
 </Incident>
 <Incident title="A dead node wedged the device plugin">
@@ -824,9 +836,9 @@ In early October the GPU node was drained for real, with a GPU Job running.
 The Job's pod was evicted, its replacement ran, and the Job completed. The
 resident models were Ready within a second of uncordon, warm from cached
 weights. `kubectl drain` itself exited 1, and always will on this cluster: the
-registry runs one replica on one node behind a disruption budget of one, so it
-can never be evicted. The drain also took Kueue's controller with it, which
-briefly left its webhook with no endpoints.
+registry runs one replica on one node behind a disruption budget that requires
+one, so it can never be evicted. The drain also briefly left Kueue's webhook
+with no endpoints.
 
 </Incident>
 <Incident title="Slurm's REST daemon looked started and wasn't">
@@ -841,8 +853,8 @@ so a daemon that dies right after starting fails the play.
 
 One cohort setting passed the CRD's schema and was refused only by Kueue's
 webhook at the first sync: borrowing within the cohort requires reclaiming
-within it too. The CRD's schema doesn't encode that rule, so nothing short of
-a sync against the live controller would have caught it.
+within it too. The CRD's schema doesn't encode that rule, and Kueue wasn't
+installed yet, so the schema was the only check available beforehand.
 
 </Incident>
 </Incidents>

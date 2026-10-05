@@ -21,7 +21,8 @@ export function RunEndingsFlow() {
         }),
         n("drain", { x: 0, y: 95 }, {
           kind: "NODE",
-          label: "Drain or eviction",
+          label: "Drain",
+          sub: "eviction API",
         }),
         n("cancel", { x: 0, y: 190 }, {
           kind: "CLI",
@@ -149,7 +150,7 @@ export function TrackerFlow() {
         e("s-a", "spa", "api", { label: "GET" }),
         e("a-l", "api", "argo", { label: "phase · 10 s cache" }),
         e("a-r", "api", "archive", { label: "after a 404", dashed: true }),
-        e("a-p", "api", "pg", { label: "read-only role" }),
+        e("a-p", "api", "pg", { label: "reads · plan edits" }),
         e("p-p", "pod", "pg", { label: "open · beat · close" }),
       ]}
     />
