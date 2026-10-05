@@ -21,7 +21,7 @@ export function GpuAdmissionFlow() {
         n("kyverno", { x: 215, y: 95 }, {
           kind: "POLICY",
           label: "Kyverno",
-          sub: "queue label · template mark",
+          sub: "workflow steps: template mark",
           tone: "warm",
         }),
         n("kueue", { x: 440, y: 95 }, {
