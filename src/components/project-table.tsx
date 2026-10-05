@@ -21,7 +21,7 @@ import {
  *
  * Server-rendered with every row visible; search, filters, and sorting are a
  * hydration enhancement, so the full table is in the initial HTML for no-JS
- * readers and crawlers. Below ~760px the rows reflow into stacked entries.
+ * readers and crawlers. Below ~880px the rows reflow into stacked entries.
  */
 
 type LinkKind = "writeup" | "live" | "repo";
