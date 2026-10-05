@@ -4,7 +4,7 @@ import { getAllWork, getAllWriting } from "@/lib/content";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = site.url;
-  const staticRoutes: MetadataRoute.Sitemap = ["", "/writing", "/about"].map(
+  const staticRoutes: MetadataRoute.Sitemap = ["", "/work", "/visual-essays", "/blog", "/about"].map(
     (p) => ({ url: `${base}${p}`, lastModified: new Date() }),
   );
 
@@ -13,10 +13,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: d.frontmatter.updated ?? d.frontmatter.date,
   }));
 
-  const writing: MetadataRoute.Sitemap = getAllWriting().map((d) => ({
-    url: `${base}/writing/${d.slug}`,
+  const blog: MetadataRoute.Sitemap = getAllWriting().map((d) => ({
+    url: `${base}/blog/${d.slug}`,
     lastModified: d.frontmatter.updated ?? d.frontmatter.date,
   }));
 
-  return [...staticRoutes, ...work, ...writing];
+  return [...staticRoutes, ...work, ...blog];
 }

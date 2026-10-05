@@ -44,12 +44,12 @@ export default async function WorkPage({
     <>
     <ReadingNav />
     <div className="nb-article nb-settle" style={{ padding: "56px 0 96px" }}>
-      <Link href="/" className="nb-extlink">
-        ← Work
+      <Link href="/work" className="nb-extlink">
+        ← Writeups
       </Link>
 
       <header style={{ margin: "28px 0 var(--space-7)" }}>
-        <p className="nb-article__eyebrow">Case study</p>
+        <p className="nb-article__eyebrow">Writeup</p>
         <h1 className="nb-article__title">{frontmatter.title}</h1>
         <p className="nb-article__lead">{frontmatter.description}</p>
 

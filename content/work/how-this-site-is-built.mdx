@@ -1,12 +1,16 @@
 ---
 title: "How this site is built"
 description: "A short tour of the content pipeline: MDX, zod-validated frontmatter, and interactive islands."
-date: 2026-03-10
+summary: "The content pipeline behind this site: MDX, zod-validated frontmatter, and interactive islands."
+date: 2026-06-16
+stack: ["next.js", "mdx", "zod", "tailwind", "d3", "react flow", "vercel"]
 tags: ["meta", "nextjs", "mdx"]
+links:
+  repo: "https://github.com/nick-buser/nickbuser.com"
 ---
 
-Posts on this site are MDX files in the repo. Frontmatter is validated against a
-[zod](https://zod.dev) schema at build time, so a malformed post fails the build
+Writeups and posts on this site are MDX files in the repo. Frontmatter is validated against a
+[zod](https://zod.dev) schema at build time, so a malformed file fails the build
 instead of shipping broken.
 
 The interesting part is that prose and **interactive components live in the same

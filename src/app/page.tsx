@@ -1,39 +1,111 @@
+import Link from "next/link";
 import { site } from "@/lib/site";
-import { projects } from "@/lib/projects";
-import { ExtLink } from "@/components/ui";
-import { WorkBrowser } from "@/components/work-browser";
+import { CATEGORIES, HOME_TOPICS, projectsIn } from "@/lib/projects";
+import { getAllWork, getAllWriting } from "@/lib/content";
+import { ExtLink, SectionLabel } from "@/components/ui";
+import { ProjectCard } from "@/components/project-card";
 
 export default function Home() {
+  const essays = projectsIn("essay");
+  const writeups = getAllWork();
+  const posts = getAllWriting();
+
   return (
     <div className="nb-wrap nb-settle" style={{ paddingBottom: 96 }}>
       {/* ── Masthead: the name set in live Fraunces, plus real contact links ── */}
-      <header style={{ padding: "64px 0 36px" }}>
-        <h1
-          style={{
-            margin: 0,
-            fontFamily: "var(--font-display)",
-            fontVariationSettings: "'opsz' 144",
-            fontWeight: 600,
-            fontSize: "clamp(2.6rem, 1.9rem + 3vw, 4.4rem)",
-            lineHeight: 1,
-            letterSpacing: "-0.02em",
-            color: "var(--foreground)",
-          }}
-        >
-          {site.name}
-        </h1>
-        <nav
-          style={{ display: "flex", gap: 20, marginTop: 22, flexWrap: "wrap" }}
-        >
+      <header className="nb-masthead">
+        <h1 className="nb-masthead__name">{site.name}</h1>
+        <p className="nb-masthead__lede">{site.lede}</p>
+        <nav className="nb-masthead__links">
           <ExtLink href={site.socials.github}>GitHub</ExtLink>
           <ExtLink href={site.socials.linkedin}>LinkedIn</ExtLink>
         </nav>
       </header>
 
-      <hr className="nb-rule" style={{ margin: "8px 0 44px" }} />
+      <hr className="nb-rule" style={{ margin: "8px 0 var(--space-7)" }} />
 
-      {/* ── Work — grouped, searchable, filterable ──────────────────────── */}
-      <WorkBrowser projects={projects} />
+      {/* ── Topics — platform first, then software, then formal modelling.
+             One format for all three: a heading, a lead, two-column cards. ── */}
+      {HOME_TOPICS.map((id) => {
+        const topic = CATEGORIES.find((c) => c.id === id)!;
+        return (
+          <section key={id} className="nb-home-section" aria-labelledby={id}>
+            <div className="nb-home-head">
+              <h2 id={id} className="nb-home-head__title">
+                {topic.title}
+              </h2>
+              <p className="nb-home-head__lead">{topic.lead}</p>
+            </div>
+            <div className="nb-cards">
+              {projectsIn(id).map((p) => (
+                <ProjectCard key={p.title} project={p} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+
+      {/* ── Elsewhere — the rest of the site, off to the side ────────────── */}
+      <section className="nb-home-section nb-elsewhere" aria-label="Elsewhere on the site">
+        <div>
+          <SectionLabel>Visual essays</SectionLabel>
+          <p className="nb-elsewhere__lead">
+            {CATEGORIES.find((c) => c.id === "essay")!.lead}
+          </p>
+          <ul className="nb-elsewhere__list">
+            {essays.map((p) => (
+              <li key={p.title}>
+                {p.links.live ? (
+                  <a href={p.links.live} target="_blank" rel="noreferrer">
+                    {p.title}
+                  </a>
+                ) : (
+                  p.title
+                )}
+              </li>
+            ))}
+          </ul>
+          <Link href="/visual-essays" className="nb-extlink">
+            All visual essays →
+          </Link>
+        </div>
+
+        <div>
+          <SectionLabel>Writeups</SectionLabel>
+          <p className="nb-elsewhere__lead">
+            {site.writeupsLead}
+          </p>
+          <ul className="nb-elsewhere__list">
+            {writeups.map((d) => (
+              <li key={d.slug}>
+                <Link href={`/work/${d.slug}`}>{d.frontmatter.title}</Link>
+              </li>
+            ))}
+          </ul>
+          <Link href="/work" className="nb-extlink">
+            All writeups →
+          </Link>
+        </div>
+
+        <div>
+          <SectionLabel>Blog</SectionLabel>
+          <p className="nb-elsewhere__lead">{site.blogLead}</p>
+          {posts.length ? (
+            <ul className="nb-elsewhere__list">
+              {posts.slice(0, 4).map((d) => (
+                <li key={d.slug}>
+                  <Link href={`/blog/${d.slug}`}>{d.frontmatter.title}</Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="nb-elsewhere__empty">No posts yet.</p>
+          )}
+          <Link href="/blog" className="nb-extlink">
+            {posts.length ? "All posts →" : "Blog →"}
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * Bespoke static SVG figures for the homelab case study. No client JS — these
+ * Bespoke static SVG figures for the homelab writeup. No client JS — these
  * render to plain SVG on the server, so they cost nothing on a reading page.
  * Styled with the `style` prop (CSS) so Athanor tokens resolve; presentation
  * attributes can't read CSS variables.

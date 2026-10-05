@@ -22,10 +22,10 @@ pnpm lint
 
 ```
 content/            # MDX writeups
-  work/             #   project case studies
-  writing/          #   notes & essays
+  work/             #   project writeups
+  writing/          #   notes & essays (served at /blog)
 src/
-  app/              # routes (home, work, writing, about) + sitemap/robots/feed
+  app/              # routes (home, work, visual-essays, blog, about) + sitemap/robots/feed
   components/
     islands/        # interactive "use client" viz (d3, React Flow)
     mdx/            # MDX renderer + component map

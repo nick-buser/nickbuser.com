@@ -9,7 +9,7 @@ export function Badge({
   tone,
   children,
 }: {
-  tone: "positive" | "complete";
+  tone: "positive" | "complete" | "pending";
   children: React.ReactNode;
 }) {
   return <span className={`nb-badge nb-badge--${tone}`}>{children}</span>;
