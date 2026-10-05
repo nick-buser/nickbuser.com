@@ -7,9 +7,9 @@ export const site = {
   shortName: "nickbuser",
   url: "https://nickbuser.com",
   description:
-    "Platform engineering — a self-hosted internal developer platform, built and run end to end — plus software, formal models, and visual essays.",
+    "Platform engineering — infrastructure, delivery, and developer tooling — plus software, formal models, and visual essays.",
   /** The one line under the name on the home masthead. */
-  lede: "Platform and infrastructure engineering — a self-hosted internal developer platform, built and run end to end — alongside software projects and formal models.",
+  lede: "Platform engineering — infrastructure, delivery, and developer tooling — alongside software projects and formal models.",
   author: {
     name: "Nick Buser",
   },

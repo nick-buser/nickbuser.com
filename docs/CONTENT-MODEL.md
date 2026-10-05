@@ -15,7 +15,13 @@ each with a `category` (`platform` | `software` | `modelling` | `essay`). Platfo
 work leads the home page, software and formal modelling fill the project table
 under it, and visual essays get their own page at `/visual-essays`. A project
 row can point into a case study with `caseStudy: "<slug>"` or
-`"<slug>#<section-id>"`. There is deliberately no tag filtering — the table
+`"<slug>#<section-id>"`.
+
+Platform is a *topic*, not a project. Within it, projects can belong to a
+`group` (`GROUPS` in `projects.ts`) — a body of work such as the homelab. The
+group carries the shared context (blurb, the case study covering the whole,
+the template repo); each system in it is its own project row. Never add a row
+for the group itself: that lists a container next to its own contents. There is deliberately no tag filtering — the table
 filters on category, status, and which links a project has.
 
 ## Frontmatter

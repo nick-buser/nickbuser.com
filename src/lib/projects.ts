@@ -16,6 +16,23 @@ export type ProjectStatus = "Live" | "Running" | "Built" | "In progress";
  */
 export type ProjectCategory = "platform" | "software" | "modelling" | "essay";
 
+/**
+ * A body of work several projects belong to — the homelab is one: an
+ * environment whose systems are each their own project, not a project itself.
+ * Groups carry the shared context (blurb, case study, template repo) so the
+ * projects inside them don't have to repeat it.
+ */
+export type ProjectGroupId = "homelab" | "agents";
+
+export interface ProjectGroup {
+  id: ProjectGroupId;
+  title: string;
+  blurb: string;
+  /** slug of the case study that covers the group as a whole */
+  caseStudy?: string;
+  links?: { repo?: string };
+}
+
 export interface Project {
   title: string;
   /** One plain sentence: what it is, read by moving through it. */
@@ -23,6 +40,7 @@ export interface Project {
   stack: string[];
   status: ProjectStatus;
   category: ProjectCategory;
+  group?: ProjectGroupId;
   links: { live?: string; repo?: string };
   /**
    * Path of an in-site case study under /work, if one covers it — a slug, or a
@@ -37,6 +55,23 @@ export const CATEGORIES: { id: ProjectCategory; title: string }[] = [
   { id: "software", title: "Software" },
   { id: "modelling", title: "Formal modelling" },
   { id: "essay", title: "Visual essay" },
+];
+
+/** Groups within the platform topic, in display order. */
+export const GROUPS: ProjectGroup[] = [
+  {
+    id: "homelab",
+    title: "The homelab",
+    blurb:
+      "Three Proxmox nodes running a self-hosted developer platform. Each system below is its own project; the case study walks through how they fit together.",
+    caseStudy: "the-homelab",
+    links: { repo: "https://github.com/nick-buser/homelab-template" },
+  },
+  {
+    id: "agents",
+    title: "Agent tooling",
+    blurb: "Infrastructure for running coding agents.",
+  },
 ];
 
 export function categoryTitle(id: ProjectCategory): string {
@@ -61,14 +96,15 @@ export function projectsIn(...categories: ProjectCategory[]): Project[] {
 export const projects: Project[] = [
   // ── Platform ──────────────────────────────────────────────────────────────
   {
-    title: "The Homelab",
+    title: "Push-to-Deploy Pipeline",
     result:
-      "A self-hosted internal developer platform on my own hardware: git push an app and it builds, deploys, and serves on the LAN.",
-    stack: ["proxmox", "terraform", "ansible", "postgres", "caddy"],
+      "Open a pull request and the app ships: Woodpecker builds the image into Gitea’s registry, Dokploy redeploys it, and a merge lands on dev while a version tag lands on prod.",
+    stack: ["gitea", "woodpecker", "dokploy", "docker swarm", "caddy"],
     status: "Running",
     category: "platform",
-    links: { repo: "https://github.com/nick-buser/homelab-template" },
-    caseStudy: "the-homelab",
+    group: "homelab",
+    links: {},
+    caseStudy: "the-homelab#git-push-and-it-deploys",
   },
   {
     title: "k3s GitOps Cluster",
@@ -77,16 +113,29 @@ export const projects: Project[] = [
     stack: ["k3s", "argo cd", "helm", "sops", "kyverno", "velero", "vllm"],
     status: "Running",
     category: "platform",
+    group: "homelab",
     links: {},
   },
   {
     title: "labctl",
     result:
-      "The homelab’s operator CLI: contract-first Postgres and Kafka credentials, deploys in dependency order, and one-command GitOps onboarding for a new tenant.",
+      "The operator CLI: renders tenant credentials from contracts, deploys in dependency order, and onboards a new tenant onto the GitOps cluster in one command.",
     stack: ["python", "typer", "terraform", "ansible", "pytest"],
     status: "Built",
     category: "platform",
+    group: "homelab",
     links: {},
+  },
+  {
+    title: "Multi-Tenant Postgres",
+    result:
+      "One shared Postgres, tenanted by role: each project gets its own database with migrator, DML-only, and read-only roles, rendered from a linted YAML contract — so a running app can never run DDL.",
+    stack: ["postgres", "ansible", "yaml contracts"],
+    status: "Running",
+    category: "platform",
+    group: "homelab",
+    links: {},
+    caseStudy: "the-homelab#one-postgres-many-tenants",
   },
   {
     title: "Fleet Event Spine",
@@ -95,8 +144,20 @@ export const projects: Project[] = [
     stack: ["redpanda", "debezium", "postgres", "json schema"],
     status: "Running",
     category: "platform",
+    group: "homelab",
     links: {},
     caseStudy: "the-homelab#the-event-log",
+  },
+  {
+    title: "Observability",
+    result:
+      "Apps and devices ship OpenTelemetry to one SigNoz instance, with the OTLP endpoint as a per-tenant switch; language-model workloads get richer traces in Langfuse.",
+    stack: ["opentelemetry", "signoz", "langfuse"],
+    status: "Running",
+    category: "platform",
+    group: "homelab",
+    links: {},
+    caseStudy: "the-homelab#seeing-the-system",
   },
   {
     title: "Firmware Provenance Pipeline",
@@ -105,16 +166,18 @@ export const projects: Project[] = [
     stack: ["rust", "esp32", "woodpecker", "garage s3", "postgres", "mqtt"],
     status: "Built",
     category: "platform",
+    group: "homelab",
     links: {},
     caseStudy: "the-homelab#the-bench-firmware-that-proves-where-it-came-from",
   },
   {
     title: "Homelab Map",
     result:
-      "A read-only map of the whole homelab, generated by parsing the Terraform, Ansible, and Argo CD sources — so it cannot drift from what is declared.",
+      "A read-only map of the whole estate, generated by parsing the Terraform, Ansible, and Argo CD sources — so it cannot drift from what is declared.",
     stack: ["react", "vite", "typescript", "zod"],
     status: "Running",
     category: "platform",
+    group: "homelab",
     links: {},
   },
   {
@@ -124,6 +187,7 @@ export const projects: Project[] = [
     stack: ["go", "react", "typescript", "openapi", "mcp"],
     status: "Built",
     category: "platform",
+    group: "agents",
     links: {},
   },
   // ── Software ──────────────────────────────────────────────────────────────
