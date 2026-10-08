@@ -1,0 +1,40 @@
+---
+title: "Fork the engine process"
+step: 15
+verdict: "adopted"
+result: "Forking the engine process brought Ready to 35–36 s. A cold caller's first token: 36.5 s median, with no 503s."
+date: 2026-10-08
+---
+
+## The problem
+
+Step 11 showed the engine process importing every library a second time,
+because it was spawned.
+
+## The change
+
+`VLLM_WORKER_MULTIPROC_METHOD=fork`. At about 14% of the start it fell short of
+the 20% rule, so adopting it was a judgment call, and I made it.
+
+<Figure caption="The held request, before and after the fork.">
+  <ColdRequestTimeline set="cs10b" />
+</Figure>
+
+## The result
+
+On the real pod, the time before the engine starts fell from 22 seconds to
+17–18, and Ready from 40 to 35–36. A cold caller's first token came at 36.54,
+36.50 and 41.48 seconds, with no 503s. The third run fell on the readiness
+probe's next five-second step.
+
+<Figure caption="The whole series in one picture: where a start's seconds went at the baseline, and where they go now.">
+  <StartupAnatomy />
+</Figure>
+
+## The decision
+
+Adopted. Verifying it turned up one more problem. An automated client, probably
+an uptime check, was requesting the gateway's root and model list about every 30
+minutes, and each request woke the 7B. With a 60-minute idle window, that can
+keep the model up indefinitely. Only inference requests should wake it, and that
+change is next.

@@ -1,0 +1,27 @@
+---
+title: "Give every vLLM service the driver cache"
+step: 13
+verdict: "adopted"
+result: "The driver-cache setting moved into the shared chart, covering the embedding server and the on-demand 12B. The other GPU services' caches were too small to matter."
+date: 2026-10-08
+---
+
+## The problem
+
+Every other GPU pod on the card had the same temporary driver cache, and each
+paid its own compile on every start.
+
+## The change
+
+The setting moved into the shared Helm chart template that every vLLM service
+uses.
+
+## The result
+
+It now covers the embedding server and the on-demand 12B. The speech and vision
+services were measured first. Their driver caches were 112 KB or less, so they
+were left alone.
+
+## The decision
+
+Adopted. Whether the 12B gets the same gain shows on its next wakes.

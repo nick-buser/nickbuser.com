@@ -1,0 +1,32 @@
+---
+title: "Adopt it in production"
+step: 8
+verdict: "adopted"
+result: "Driver cache, pinned KV cache, no CUDA graphs. The production pod went from 145 s to 40 s to Ready, for a 0.8% batch-1 decode cost."
+date: 2026-10-08
+---
+
+## The problem
+
+Two configurations passed the adoption rule: graphs on, about 56 seconds to a
+first answer, and graphs off, about 45.
+
+## The change
+
+Production got the persistent driver cache, the pinned KV cache, and no CUDA
+graphs. Running without graphs won on wake to first answer, at a 0.8% cost to
+batch-1 decode, and the goal was the shortest cold start.
+
+<Figure caption="The real pod, measured against its own log from the day before.">
+  <ColdStartBars set="cs10" />
+</Figure>
+
+## The result
+
+On the real pod, time to Ready went from 145 seconds to 40, with the first
+256-token answer in 5.2. The first start after the change takes 81 seconds,
+once, while it fills the cache.
+
+## The decision
+
+Shipped. Verifying it turned up the next problem.

@@ -25,6 +25,11 @@ import {
   DeviceSinksSvg,
   VizPipelineSvg,
 } from "@/components/diagrams/homelab-svgs";
+import {
+  ColdStartBars,
+  ColdRequestTimeline,
+  StartupAnatomy,
+} from "@/components/islands/cold-start-charts";
 import { Callout } from "@/components/mdx/callout";
 import { Incident, Incidents } from "@/components/mdx/incident";
 import { Figure } from "@/components/mdx/figure";
@@ -68,6 +73,9 @@ export const mdxComponents = {
   GpuQueueTree,
   RunEndingsFlow,
   TelemetryStackFlow,
+  ColdStartBars,
+  ColdRequestTimeline,
+  StartupAnatomy,
   OutboxTxnSvg,
   DeviceSinksSvg,
   VizPipelineSvg,

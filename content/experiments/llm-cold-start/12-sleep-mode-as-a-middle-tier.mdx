@@ -1,0 +1,37 @@
+---
+title: "Sleep mode as a middle tier"
+step: 12
+verdict: "not-adopted"
+result: "Both sleep levels freed about 11.8 GB and woke in 0.8 to 2 s, but a sleeping model still held its quota, and level 1 parked 14 GiB in host memory."
+date: 2026-10-08
+---
+
+## The problem
+
+Between awake and off, vLLM's sleep mode might give a fast wake without holding
+the GPU.
+
+## The change
+
+Both sleep levels on a twin, measuring GPU memory, host memory, the time back to
+serving, and whether answers matched before and after.
+
+<Figure caption="Three views of the trade: how fast it comes back, what it frees on the card, and what it parks on the host.">
+  <ColdStartBars set="cs6" />
+</Figure>
+
+## The result
+
+Both levels freed about 11.8 GB of the card and answered identically after
+waking. Level 1 came back in 0.8 seconds but parked 14.1 GiB in host memory and
+still held it after waking, on a host that has hung under memory pressure
+before. Level 2 parked nothing and served again in 2.0 seconds with a warm page
+cache, or 16.9 with a cold one.
+
+In both cases the sleeping pod kept its Kueue quota. A training job got the card
+in four seconds only by preempting it, the same as from an awake model.
+
+## The decision
+
+Not adopted as it stands. Level 2 becomes a third state, beside awake and off,
+in the analysis of how long to keep the model up.
