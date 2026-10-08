@@ -99,8 +99,8 @@ export const projects: Project[] = [
   {
     title: "ML Orchestration Lab",
     result:
-      "GPU scheduling and distributed training at small scale: Slurm and Kubernetes batch schedulers with gang scheduling and preemption, and a training series measuring where each step’s time goes.",
-    stack: ["slurm", "volcano", "kueue", "argo workflows", "pytorch", "mlflow"],
+      "A small ML platform on one consumer GPU: Kueue quota, Volcano gangs and Slurm on Kubernetes sharing one card, models that wake on request, and telemetry across the stack.",
+    stack: ["kueue", "volcano", "slurm", "argo workflows", "vllm", "opentelemetry"],
     status: "Running",
     category: "platform",
     links: {},

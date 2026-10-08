@@ -2,11 +2,12 @@
 title: "ML Orchestration Lab"
 description: "A small ML platform on one consumer GPU, built to practice what large GPU platforms depend on: sharing scarce accelerators, queueing and quota, gang scheduling, preemption, runs that survive being interrupted, and telemetry that follows a run through every layer of the stack."
 date: 2026-10-05
-summary: "A small ML platform on one consumer GPU: Kueue for quota, Volcano for gangs, Argo Workflows for submission, Slurm beside them, and telemetry across the stack."
+updated: 2026-10-08
+summary: "A small ML platform on one consumer GPU: Kueue for quota, Volcano for gangs, Slurm on Kubernetes, models that wake on request, and telemetry across the stack."
 role: "Build & operation"
 timeframe: "Ongoing"
 stack:
-  ["kueue", "volcano", "argo workflows", "slurm", "k3s", "pytorch", "opentelemetry", "signoz", "perfetto", "nnsight"]
+  ["kueue", "volcano", "slurm", "slinky", "argo workflows", "k3s", "vllm", "opentelemetry", "signoz", "perfetto", "nnsight"]
 featured: true
 tags: ["ml", "gpu", "scheduling", "kubernetes", "observability"]
 ---
@@ -28,6 +29,9 @@ genuinely contended. The tools are the ones used at scale, Kueue, Volcano, Argo
 Workflows and Slurm, so the lab is oversized for one card on purpose. The point
 is for the patterns to carry over to a cluster with many GPUs.
 
+The experiments that run on it are written up as [experiment
+series](/experiments), one short step at a time.
+
 ## One card, many claimants
 
 The card has no hardware partitioning, so it is shared by time-slicing: the
@@ -39,10 +43,12 @@ These are the workloads that want it:
 
 - **Resident models**, always on: an embedding server, speech-to-text,
   text-to-speech and object detection.
-- **Two language models**, a 7B and a 12B, started on demand. Only one fits at a
-  time.
+- **Two language models**, a 7B and a 12B, off by default. The 7B wakes on the
+  first request that needs it, and both go back to zero after an hour without
+  one. Only one fits at a time.
 - **A GPU notebook**, started when someone needs it.
 - **Experiments and benchmarks**, submitted as workflows.
+- **Slurm jobs**, on a GPU worker that exists only while it's asked for.
 - **Fine-tuning**, which needs as much of the card as it can get.
 - **GPU CI**, build steps that test code on the real card.
 
@@ -54,9 +60,9 @@ containers that all had the card mounted, with a script that stopped the
 language model before a heavy job and restarted it afterwards. The script could
 only see part of what was on the card, so it would report the card free while
 another model still held most of the memory, and the heavy job would run out of
-memory. Patching the script wasn't the answer. Every GPU consumer is moving into
-Kubernetes instead, so that one scheduler decides who gets the card. The models,
-the notebook, the experiments and fine-tuning are already there.
+memory. Patching the script wasn't the answer. Every GPU consumer moved into
+Kubernetes instead, Slurm included, so that one scheduler decides who gets the
+card, and the script is retired.
 
 ## Deciding whether, then where
 
@@ -93,28 +99,42 @@ notebook; then batch work such as benchmarks, CI and low-priority experiments.
 eight shares. The large-model queue owns none and may borrow one, which is how
 "only one language model at a time" is enforced: by quota, not by a script.
 When training needs that share back, Kueue reclaims it, the language model is
-preempted, and it comes back on its own a couple of minutes after the training
-finishes.
+preempted, and it comes back on its own once the training finishes.
 
 <Figure num="Fig. 2" caption="The quota shape. Two queues share a pool. The general queue owns all eight shares and lends one. The large-model queue owns none and may borrow one, so at most one language model runs.">
   <GpuQueueTree />
 </Figure>
 
-**Memory is the honest gap.** Shares count compute, but memory is what runs
-out. The queues already carry a GPU-memory budget that workloads can declare,
-and today it does nothing: no workload declares a number yet, and nothing
-would cap a process at the number it declared. The real fix, Kubernetes' Dynamic Resource Allocation with
-shareable memory, is still alpha in every component it would need. Until then,
-each model server caps its own share of memory.
+**Memory is accounted for, but not enforced.** Shares count compute, and memory
+is what actually runs out, so the pool also counts GPU memory. Every GPU
+workload declares the memory it needs, CI refuses a workload that doesn't, and
+Kueue holds work back when the memory isn't there, even with shares free. What
+nothing does is stop a process from using more than it declared. Time-slicing
+has no memory isolation, so a declaration is a promise. The real fix,
+Kubernetes' Dynamic Resource Allocation with shareable memory, is still alpha
+in every component it would need.
 
-**Slurm runs beside it.** Much of the ML world still schedules on Slurm, so a
-small Slurm cluster runs next to the Kubernetes stack: a controller and a GPU
-compute node, with partitions, a QOS ladder where higher tiers preempt lower
-ones by requeueing them, job accounting, and a REST API behind JWT
-authentication. Its GPU partition is kept down for now, because a Slurm job
-would land on the card without Kubernetes knowing. The plan is to move Slurm
-onto Kubernetes with Slinky, so its GPU jobs queue under the same quota as
-everything else.
+## Slurm inside the cluster
+
+Much of the ML world still schedules on Slurm, and its idioms are worth knowing
+on their own terms: partitions, a QOS ladder where higher tiers preempt lower
+ones by requeueing them, job accounting, and a REST API for submitting work. So
+Slurm runs inside the cluster through Slinky, SchedMD's Kubernetes operator,
+with its controller, accounting database and REST API as ordinary pods.
+
+Its GPU worker is the interesting part. A Slurm worker is a long-lived pod. If
+it held a share of the card permanently, Kueue would admit it once and every
+Slurm job after that would bypass the quota. So the GPU worker sits at zero
+replicas. Asking for it scales it up, Kueue admits it against shares and memory
+like anything else, and Slurm's own scheduler places jobs on it from there. With
+the 7B serving, a request for the Slurm GPU worker waits in Kueue's queue
+rather than squeezing in beside it.
+
+Slurm used to run in two containers beside the cluster. That setup is stopped,
+after the same drills passed on the new one: partitions, the QOS ladder,
+preemption by requeue, job arrays and accounting. The gap is that Slurm jobs
+can't yet run real ML containers. Only a GPU check has run through Slurm on the
+card, and a container per job is next.
 
 ## Experiments that don't know the scheduler
 
@@ -140,17 +160,22 @@ record before it asks for the stop. On the way out, the run closes its record
 as `cancelled` if the mark is there, and `interrupted` if not. `failed` is kept
 for code that raised or a process that died, so a failure count never mixes in
 work that was simply preempted. When the workflow retries an interrupted run,
-the new attempt links back to the one it replaces, and it can resume from that
-attempt's last checkpoint. A run that is killed outright can't close its own
-record, so a reaper fails records that have gone quiet for too long.
+the new attempt links back to the one it replaces, and a study that writes
+checkpoints can resume from that attempt's last one. A run that is killed
+outright can't close its own record, so a reaper fails records that have gone
+quiet for too long.
 
 In a preemption drill, the interrupted run's record closed within a tenth of a
 second of the preemptor arriving. The retry waited in Kueue's queue until the
 card was free, then finished.
 
-A tracker sits on top of these records: plans for experiments not yet run,
-what was submitted and when, and every run with its outcome, provenance and
-retry chain. It shows what was intended next to what happened.
+A tracker sits on top of these records: plans for experiments not yet run, what
+was submitted and when, and every run with its outcome, provenance and retry
+chain. It is the seed of a cluster portal, the front door for every GPU job on
+the homelab, from any repository: submit it, watch it, see why it's waiting and
+what preempted it, and keep its record. People and agents will both submit
+through it, and work an agent proposes will run on its own when it fits its
+project's budget. The portal is decided and not built.
 
 ## Telemetry across the stack
 
@@ -173,12 +198,13 @@ workflows, work stuck waiting for quota, and the health of the scheduler
 itself.
 
 **Run and requests.** A run emits a span for each phase of its work and a
-heartbeat as it makes progress, tagged with its id. The model servers emit a
-span per request, and a small gateway in front of the 7B tags each request with
-the fine-tuned adapter it used, which the server's own metrics can't do. Alerts
-on stalled or failed runs are queries over the run records rather than over
-telemetry, because a process that is killed outright stops sending anything,
-and its record is still there to be found.
+heartbeat as it makes progress, under its experiment's name and tagged with its
+id and pod. The model servers emit a span per request, and the gateway in front
+of the 7B tags each request with the fine-tuned adapter it used, which the
+server's own metrics can't do. It also logs every wake and every request it
+held. Alerts on stalled or failed runs are queries over the run records rather
+than over telemetry, because a process that is killed outright stops sending
+anything, and its record is still there to be found.
 
 **Process and card.** Today the host reads the card every 15 seconds: memory,
 utilization, power, temperature and clocks, plus memory per process, traced
@@ -186,8 +212,8 @@ through its cgroup to the pod and then to the run. That answers who is using
 the card, but it is too coarse to show what happens inside a step. The next
 piece is a sampler inside the run at ten samples a second, written as a table
 attached to the run, with memory percentiles and energy as summary numbers.
-Checking that sampler against the host's readings is the first experiment
-planned on the platform.
+Checking that sampler against the host's readings is the first study planned on
+the platform.
 
 The card itself sets a limit here. NVIDIA's data-center monitoring stack,
 which reports how busy the compute units and tensor cores are, doesn't support
@@ -211,20 +237,34 @@ attention statistics, and turn them into telemetry rather than results.
 **One rule holds across every layer.** Telemetry is for operating the system
 and is never read back as a result. Results live in the run's database. When a
 study needs a time series as data, like the sampler's table, it is written as an
-artifact of the run, not fetched from the monitoring system afterwards. That
-keeps results reproducible when a monitoring backend loses data or changes.
+artifact of the run, not fetched from the monitoring system afterwards. The
+portal is designed the same way from the other side: a run's scheduling and
+runtime context will be joined from the scheduler, the logs and the telemetry
+when someone looks at it, and never copied into the record.
 
-## A second GPU for distributed rounds
+## Experiment rounds
 
-Distributed training needs more than one GPU. The lab's second one is in a
-laptop, an older NVIDIA card several generations behind the main one. The laptop
-runs hot and isn't kept on, so it joins the cluster as a second GPU node for
-rounds of distributed-training experiments and leaves again afterwards.
+<Figure num="Fig. 5" caption="The first series, end to end: a cold caller's wait for the 7B's first token at each milestone. Select a bar to open its step.">
+  <ColdStartBars set="trail" />
+</Figure>
 
-The two cards need different PyTorch builds, and no NCCL build spans both, so
-gradients travel over Gloo across the home network. That is a constraint and a
-teaching tool at once: communication cost, stragglers, and workers dropping out
-and rejoining all become impossible to ignore. Each round gets its own writeup.
+The first series made the wake-on-request 7B worth using. Turning the model off
+by default gave the card back to experiments, but the first wake took 151
+seconds. Fifteen measured steps brought a cold caller's wait to 36.5 seconds,
+with no error responses. The biggest single gain came from keeping the CUDA
+driver's compiled kernels between starts instead of letting every pod compile
+them again.
+Each step has its own short page: [LLM cold start](/experiments/llm-cold-start).
+
+The next rounds measure the platform itself: what sharing one card costs each
+tenant, how a request becomes GPU time, and how a model could be gated before
+it's promoted. Distributed training gets its own rounds. The lab's second GPU is
+in a laptop, an older NVIDIA card several generations behind the main one,
+which runs hot and isn't kept on. The plan is for it to join the cluster as a
+second GPU node for each round and leave again afterwards. The two cards need
+different PyTorch builds and no NCCL build spans both, so gradients will travel
+over Gloo across the home network, which makes communication cost, stragglers,
+and workers dropping out and rejoining impossible to ignore.
 
 ## What broke
 
@@ -248,6 +288,46 @@ template now asks for exactly one share per pod, and anything that needs more of
 the card runs as several pods.
 
 </Incident>
+<Incident title="Honest memory numbers left no room for the language model">
+
+Declaring real memory peaks meant measuring them. The text-to-speech server's
+allocator grew from under 500 MiB idle to over 3 GB under a handful of
+concurrent requests, and kept it. Declaring that would have left the 7B nowhere
+to fit. The server now handles one request at a time, which caps its peak.
+A later long-input test found that capped peak still above its declaration, and
+that trade is still open.
+
+</Incident>
+<Incident title="A CPU-only Slurm worker claimed the host's GPU">
+
+Slurm's workers detect their hardware at start, and inside a container they
+read the host's. A worker pod with no GPU device registered the host's GPU, 24
+CPUs and 62 GB of memory, none of which it could use. The workers now describe
+themselves with static configuration and hardware detection turned off.
+
+</Incident>
+<Incident title="Checking an image tag evicted 40 pods">
+
+Pulling a 9 GB model-server image by hand, just to confirm a tag existed,
+filled the control-plane node's disk. The kubelet evicted 40 pods, Kueue's
+controller and the LLM gateway among them. The gateway's replacement couldn't
+start, because registry retention had already pruned the image it was pinned
+to, and the model endpoint returned errors for about twelve minutes. A drill
+found it, not an alert. The gateway was re-pinned, registry retention is getting
+a check for pinned images before it prunes, and nothing pulls images by hand on
+a node.
+
+</Incident>
+<Incident title="A neighbour on the host took the platform down">
+
+The GPU node and the cluster's control plane share a host with other virtual
+machines. A memory-heavy job in one of them exhausted the host's memory twice
+in a day, and every guest went dark, including the GPU node and the model
+endpoints. The second time needed a power cycle. The GPU node is moving into a
+VM of its own with the card passed through, which also brings the device
+isolation and per-job limits that a container on the host can't have.
+
+</Incident>
 <Incident title="No experiment could reach the GPU">
 
 The first GPU experiment submitted to the cluster failed, and so would every
@@ -258,27 +338,18 @@ manifest and never evaluates a condition. The fix quoted the values, and a test
 now checks every workflow file for it.
 
 </Incident>
-<Incident title="GitOps undid the operator's fixes">
-
-Argo CD keeps the cluster matching git, which includes undoing what an operator
-just did by hand. It scaled a paused component back up within a minute, and it
-kept recreating a failing job that a time limit kept deleting. Drills now
-simulate outages in ways git doesn't manage, such as a quota that allows zero
-pods.
-
-</Incident>
 </Incidents>
 
 ## What's next
 
-On the platform side: Slurm on Kubernetes through Slinky, GPU memory that the
-scheduler can actually account for, the telemetry layers above, and run events
-published to the lab's event log, so that a finished study can start its own
-analysis.
-
-The bigger part is what runs on it. The first experiments measure the platform
-itself: how a model server behaves under load, what sharing one card costs each
-tenant, how a request becomes GPU time, and how a model could be gated before
-it's promoted. After those come practice ramps and larger studies, including
-the distributed rounds on the second GPU. Each gets its own writeup, told
-through the metric it was designed to move.
+- **Slurm jobs in real containers**, one container per job, so ML workloads can
+  run through Slurm and not just reach the card.
+- **The GPU node as its own VM**, with the card passed through.
+- **Waking only for inference**, so an uptime check can't keep the model up,
+  and a keep-alive window chosen from a week of real traffic.
+- **The cluster portal**, starting with who submitted what, scheduler views,
+  and submitting through its API.
+- **The telemetry layers above**, starting with the in-run GPU sampler.
+- **Run events on the lab's event log**, so a finished study can start its own
+  analysis.
+- **GPU memory the card enforces**, once Dynamic Resource Allocation is ready.
