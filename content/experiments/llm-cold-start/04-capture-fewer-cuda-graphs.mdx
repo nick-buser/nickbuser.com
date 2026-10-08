@@ -2,7 +2,7 @@
 title: "Capture fewer CUDA graphs, or none"
 step: 4
 verdict: "suspect"
-result: "Fewer or no CUDA graphs cut the start by 36–43%, and seemed to cut batch-1 decode from 52 to 14 tokens/s."
+result: "Piecewise CUDA graphs or none cut the start by 36–43%, and seemed to cut batch-1 decode from 52 to 14 tokens/s."
 date: 2026-10-08
 ---
 
@@ -16,7 +16,7 @@ Four arms: fewer capture sizes, piecewise graphs only, piecewise with fewer
 sizes, and no graphs at all with `--enforce-eager`.
 
 <Figure caption="Switch to the decode view: the faster starts came with a decode loss far too large for the change.">
-  <ColdStartBars set="cs2" />
+  <ColdStartBars set="fewer-graphs" />
 </Figure>
 
 ## The result

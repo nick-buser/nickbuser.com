@@ -2,7 +2,7 @@
 title: "Hold the cold request"
 step: 14
 verdict: "adopted"
-result: "The gateway holds a cold request until the model is Ready, then forwards it. A client that obeys the retry hint went from 150.3 s to 41.4 s, with no 503s."
+result: "The gateway holds a cold request for up to 60 s until the model is Ready, then forwards it. A client that obeys the retry hint went from 150.3 s to 41.4 s, with no 503s."
 date: 2026-10-08
 ---
 
@@ -20,7 +20,7 @@ remaining, with a five-second floor. Sixty seconds is under the tightest known
 client timeout, a 120-second chat call.
 
 <Figure caption="The held request never sees a 503, and it beats the polling client because the gateway checks health every second.">
-  <ColdRequestTimeline set="od3d" />
+  <ColdRequestTimeline set="hold" />
 </Figure>
 
 ## The result

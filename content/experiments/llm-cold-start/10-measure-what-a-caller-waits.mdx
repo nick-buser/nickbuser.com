@@ -18,7 +18,7 @@ streaming request through the gateway, follows the 503s in one of two client
 styles, and times the first token.
 
 <Figure caption="The same cold start, seen by two clients. Pick a client to see what it went through.">
-  <ColdRequestTimeline set="cs5" />
+  <ColdRequestTimeline set="caller" />
 </Figure>
 
 ## The result
@@ -26,7 +26,7 @@ styles, and times the first token.
 The model was Ready at 41 seconds. A client that obeyed `Retry-After: 150`, a
 value sized for the old start, got its first token at 150.3 seconds. A client
 retrying every five seconds got it at 45.6. A warm request took 0.06 seconds,
-and runs varied by two hundredths of a second.
+and runs agreed within a few hundredths of a second.
 
 ## The decision
 

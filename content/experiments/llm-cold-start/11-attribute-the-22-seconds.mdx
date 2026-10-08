@@ -16,12 +16,13 @@ left.
 An import-time profile captured inside the real image, and a debug-log timeline.
 
 <Figure caption="Switch views to see what forking the engine process saves.">
-  <ColdStartBars set="cs4" />
+  <ColdStartBars set="imports" />
 </Figure>
 
 ## The result
 
-The API server spends 13.75 seconds importing, mostly torch and transformers.
+The API server spends 13.75 seconds importing, led by torch (3.8 seconds) and
+transformers (2.4).
 The engine process spends another 5.3, because vLLM's command line starts it
 with `spawn` and it imports everything again. LoRA support and the tracing
 exporter cost nothing measurable, and running the engine in-process isn't

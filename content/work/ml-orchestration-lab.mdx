@@ -3,11 +3,11 @@ title: "ML Orchestration Lab"
 description: "A small ML platform on one consumer GPU, built to practice what large GPU platforms depend on: sharing scarce accelerators, queueing and quota, gang scheduling, preemption, runs that survive being interrupted, and telemetry that follows a run through every layer of the stack."
 date: 2026-10-05
 updated: 2026-10-08
-summary: "A small ML platform on one consumer GPU: Kueue for quota, Volcano for gangs, Slurm on Kubernetes, models that wake on request, and telemetry across the stack."
+summary: "A small ML platform on one consumer GPU: Kueue for quota, Volcano for gangs, Slurm on Kubernetes, models that wake on request, and telemetry joined on the run."
 role: "Build & operation"
 timeframe: "Ongoing"
 stack:
-  ["kueue", "volcano", "slurm", "slinky", "argo workflows", "k3s", "vllm", "opentelemetry", "signoz", "perfetto", "nnsight"]
+  ["kueue", "volcano", "slurm", "slinky", "argo workflows", "k3s", "vllm", "opentelemetry", "signoz"]
 featured: true
 tags: ["ml", "gpu", "scheduling", "kubernetes", "observability"]
 ---
@@ -35,22 +35,22 @@ series](/experiments), one short step at a time.
 ## One card, many claimants
 
 The card has no hardware partitioning, so it is shared by time-slicing: the
-cluster sees it as eight shares, and a pod may hold one. The shares split
-compute and nothing else. Every share sees all 16 GB of memory, and a workload
+cluster sees it as eight shares, and a pod may hold one. The shares are
+scheduling tokens: they count pods, not memory or a fixed slice of compute.
+Every share sees all 16 GB of memory, and a workload
 that runs past it fails at run time rather than being refused up front.
 
 These are the workloads that want it:
 
 - **Resident models**, always on: an embedding server, speech-to-text,
   text-to-speech and object detection.
-- **Two language models**, a 7B and a 12B, off by default. The 7B wakes on the
-  first request that needs it, and both go back to zero after an hour without
-  one. Only one fits at a time.
+- **Two language models**, a 7B and a 12B, off by default. The 7B wakes on its
+  first request, and both are set to go back to zero after an hour without one. Only one fits at a time.
 - **A GPU notebook**, started when someone needs it.
 - **Experiments and benchmarks**, submitted as workflows.
 - **Slurm jobs**, on a GPU worker that exists only while it's asked for.
 - **Fine-tuning**, which needs as much of the card as it can get.
-- **GPU CI**, build steps that test code on the real card.
+- **GPU CI**, build steps meant to test code on the real card.
 
 That mix, latency-sensitive serving next to throughput-hungry batch work, is the
 same contest a company's GPU cluster runs every day, at a smaller size.
@@ -62,11 +62,12 @@ only see part of what was on the card, so it would report the card free while
 another model still held most of the memory, and the heavy job would run out of
 memory. Patching the script wasn't the answer. Every GPU consumer moved into
 Kubernetes instead, Slurm included, so that one scheduler decides who gets the
-card, and the script is retired.
+card. The script no longer arbitrates anything, and removing it from the host is
+the last step.
 
 ## Deciding whether, then where
 
-<Figure num="Fig. 1" caption="A GPU pod's path. A policy check makes sure GPU work came through an approved template. Kueue holds the pod until quota and priority allow it to run. Then the default scheduler places a single pod, and Volcano places a gang all at once or not at all.">
+<Figure num="Fig. 1" caption="A GPU pod's path. A policy check makes sure GPU workflow steps came through an approved template. Kueue holds the pod until quota and priority allow it to run. Then the default scheduler places a single pod, and Volcano places a gang all at once or not at all.">
   <GpuAdmissionFlow />
 </Figure>
 
@@ -84,7 +85,7 @@ all. It will preempt the extra workers a job holds above its minimum, but never
 take a gang below the minimum it needs to run.
 
 Neither is enough alone. Kueue admits pods one at a time, so it could admit
-half a gang that would then wait forever. Volcano knows nothing about quota.
+half a gang that would then wait forever. Volcano doesn't see Kueue's quota.
 Labelling a gang's pods as one group makes Kueue wait until every member exists
 and admit them together, and Volcano then binds them together. That gives one
 all-or-nothing guarantee at each layer: quota in Kueue, placement in Volcano.
@@ -105,8 +106,8 @@ preempted, and it comes back on its own once the training finishes.
   <GpuQueueTree />
 </Figure>
 
-**Memory is accounted for, but not enforced.** Shares count compute, and memory
-is what actually runs out, so the pool also counts GPU memory. Every GPU
+**Memory is accounted for, but not enforced.** Shares count pods, and memory is
+what actually runs out, so the pool also counts GPU memory. Every GPU
 workload declares the memory it needs, CI refuses a workload that doesn't, and
 Kueue holds work back when the memory isn't there, even with shares free. What
 nothing does is stop a process from using more than it declared. Time-slicing
@@ -131,17 +132,20 @@ the 7B serving, a request for the Slurm GPU worker waits in Kueue's queue
 rather than squeezing in beside it.
 
 Slurm used to run in two containers beside the cluster. That setup is stopped,
-after the same drills passed on the new one: partitions, the QOS ladder,
-preemption by requeue, job arrays and accounting. The gap is that Slurm jobs
-can't yet run real ML containers. Only a GPU check has run through Slurm on the
+after its drills were re-run on the new one. Partitions, the QOS ladder,
+preemption by requeue, job arrays and accounting passed. A two-node exclusive
+preemption and a multi-rank PyTorch run couldn't run yet, and that is the gap:
+Slurm jobs can't yet run real ML containers. Only a GPU check has run through Slurm on the
 card, and a container per job is next.
 
 ## Experiments that don't know the scheduler
 
-The experiment code lives in its own repository and never names a queue, a
-gang, a priority class or a GPU resource. A test fails the build if it does. A
-study is a function that takes a spec, and the platform's workflow templates
-decide everything about where and how it runs. Swapping Volcano for something
+The experiment code lives in its own repository. It never names a Kueue,
+Volcano or Slurm object or asks for a GPU directly, and a test fails the build
+if it does. It reaches the card only through the platform's GPU step template,
+passing a priority and a memory figure as arguments. A study is a function that
+takes a spec, and the platform's templates decide everything else about where
+and how it runs. Swapping Volcano for something
 else, or moving to a cloud cluster, is meant to be a platform change that
 touches no experiment.
 
@@ -179,7 +183,7 @@ project's budget. The portal is decided and not built.
 
 ## Telemetry across the stack
 
-<Figure num="Fig. 4" caption="Telemetry for one run, layer by layer, all joined on the run's id and its pod. Solid paths run today. Dashed paths are being built.">
+<Figure num="Fig. 4" caption="Telemetry for one run, layer by layer, keyed by the run's id and its pod. Solid paths are built. Dashed paths are planned.">
   <TelemetryStackFlow />
 </Figure>
 
@@ -191,7 +195,7 @@ one continuous picture of a run across all of them, so that a slow step can be
 traced from the scheduler's decision down to the kernel and back.
 
 **Scheduler and cluster.** Kubernetes events, the scheduler's admission and
-preemption metrics, and the workflow engine's metrics all flow into SigNoz,
+preemption metrics, and the workflow engine's metrics are shipped to SigNoz,
 alongside container logs and node metrics. This is the layer that answers "why
 is my job waiting?" and "what took my card away?". Alerts here cover failed
 workflows, work stuck waiting for quota, and the health of the scheduler
@@ -206,9 +210,10 @@ held. Alerts on stalled or failed runs are queries over the run records rather
 than over telemetry, because a process that is killed outright stops sending
 anything, and its record is still there to be found.
 
-**Process and card.** Today the host reads the card every 15 seconds: memory,
+**Process and card.** The host reads the card every 15 seconds: memory,
 utilization, power, temperature and clocks, plus memory per process, traced
-through its cgroup to the pod and then to the run. That answers who is using
+through its cgroup to the pod. The run record carries the pod's name, so the two
+can be joined. That answers who is using
 the card, but it is too coarse to show what happens inside a step. The next
 piece is a sampler inside the run at ten samples a second, written as a table
 attached to the run, with memory percentiles and energy as summary numbers.
@@ -219,8 +224,8 @@ The card itself sets a limit here. NVIDIA's data-center monitoring stack,
 which reports how busy the compute units and tensor cores are, doesn't support
 consumer cards like this one. That gap is why lower-level options are on the
 table: kernel profiling with NVIDIA's own tools, which needs a driver setting
-on the host, and eBPF probes on the driver's calls, which would show what a
-process asks of the card without touching its code.
+on the host, and, as an idea still to test, eBPF probes on the driver's calls,
+which would show what a process asks of the card without touching its code.
 
 **Kernels and framework.** PyTorch's profiler records which kernels ran, how
 long they took, and where the GPU sat idle waiting on the CPU. Its traces have
@@ -249,8 +254,8 @@ when someone looks at it, and never copied into the record.
 </Figure>
 
 The first series made the wake-on-request 7B worth using. Turning the model off
-by default gave the card back to experiments, but the first wake took 151
-seconds. Fifteen measured steps brought a cold caller's wait to 36.5 seconds,
+by default is meant to give the card back to experiments, though how much it
+gives back is still to be measured, and the first wake took 151 seconds. Fifteen measured steps brought a cold caller's wait to 36.5 seconds,
 with no error responses. The biggest single gain came from keeping the CUDA
 driver's compiled kernels between starts instead of letting every pod compile
 them again.
@@ -259,11 +264,12 @@ Each step has its own short page: [LLM cold start](/experiments/llm-cold-start).
 The next rounds measure the platform itself: what sharing one card costs each
 tenant, how a request becomes GPU time, and how a model could be gated before
 it's promoted. Distributed training gets its own rounds. The lab's second GPU is
-in a laptop, an older NVIDIA card several generations behind the main one,
-which runs hot and isn't kept on. The plan is for it to join the cluster as a
-second GPU node for each round and leave again afterwards. The two cards need
-different PyTorch builds and no NCCL build spans both, so gradients will travel
-over Gloo across the home network, which makes communication cost, stragglers,
+in a laptop, an older NVIDIA card several generations behind the main one. The
+laptop runs hot and is a pain to keep connected, and it has been offline since
+the summer. Rather than run it all the time, I plan to bring it back as a second
+GPU node for distributed rounds. The two cards need different PyTorch builds and
+no NCCL build spans both, so gradients will travel over Gloo across the home
+network, which makes communication cost, stragglers,
 and workers dropping out and rejoining impossible to ignore.
 
 ## What broke
@@ -276,7 +282,8 @@ skipped the check can't sneak past the quota. When the control plane ran out of
 memory, Kueue couldn't start, and pod creation stopped in every namespace it
 manages, including for pods that didn't want a GPU at all. The fix scoped
 Kueue's checks to pods that ask for a queue. A drill then took Kueue down on
-purpose: ordinary pods were created, and GPU pods were still refused.
+purpose: ordinary pods were created, and pods that asked for a queue were
+still refused.
 
 </Incident>
 <Incident title="The quota allowed pods the card would refuse">
@@ -318,14 +325,16 @@ a check for pinned images before it prunes, and nothing pulls images by hand on
 a node.
 
 </Incident>
-<Incident title="A neighbour on the host took the platform down">
+<Incident title="The host ran out of memory, twice in a day">
 
 The GPU node and the cluster's control plane share a host with other virtual
-machines. A memory-heavy job in one of them exhausted the host's memory twice
-in a day, and every guest went dark, including the GPU node and the model
-endpoints. The second time needed a power cycle. The GPU node is moving into a
-VM of its own with the card passed through, which also brings the device
-isolation and per-job limits that a container on the host can't have.
+machines. Memory-heavy jobs exhausted the host's memory twice in one day: the
+first time a job in another VM on top of the platform's own image builds, the
+second time that VM's job alone. Every guest went dark, including the GPU node
+and the model endpoints, and the second time needed a power cycle. The GPU node
+is to move into a VM of its own with the card passed through, which also brings
+the device isolation and per-job limits that a container on the host can't
+have.
 
 </Incident>
 <Incident title="No experiment could reach the GPU">

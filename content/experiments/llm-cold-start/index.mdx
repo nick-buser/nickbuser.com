@@ -19,26 +19,26 @@ that wake as short as possible.
   <ColdStartBars set="trail" />
 </Figure>
 
-The model is now off by default and wakes on the first request that needs it.
+The model is now off by default and wakes on its first request.
 A cold caller gets the first token 36.5 seconds after sending the request, with
 no error responses on the way. At the start the same wait was 151 seconds.
 After 60 idle minutes the model scales back to zero and the card is free again.
-Steady batch-1 decoding got 0.8% slower.
+On the twin, steady batch-1 decoding got 0.8% slower.
 
-<Figure num="Fig. 2" caption="Where a start's seconds go, before the series and after it. Most of the old start was engine work around CUDA graphs, and about 40 seconds of it turned out to be the driver compiling kernels.">
+<Figure num="Fig. 2" caption="Where a start's seconds go, before the series and after it. Most of the old start was engine work around CUDA graphs, and about 40 seconds of it appears to have been the driver compiling kernels.">
   <StartupAnatomy />
 </Figure>
 
 ## How it was measured
 
 - **A faithful twin.** A disposable copy of the production server, with the same
-  model, flags, memory claim and priority, launched as a workflow. Experiments
-  never touched the live model until a change was adopted.
+  model, flags and memory claim, launched as a workflow. Experiments never
+  touched the live model.
 - **Startup split into phases.** A harness reads each run's server log and pod
   events and splits the start into named phases: Python before the engine,
   weights, graph profiling and capture, engine start, API server.
 - **A ledger written first.** Every run gets a row before anyone interprets it.
-  Two or three runs per arm, on the same card, the same day.
+  Most arms ran two or three times, on the same card.
 - **A rule set before measuring.** Adopt a change if it cuts the cold start by
   at least 20% and costs at most 5% of batch-1 decode speed. Anything outside
   the rule was a judgment call.
@@ -61,7 +61,7 @@ Steady batch-1 decoding got 0.8% slower.
 - **Attribute before optimizing.** An import profile explained 89% of the time
   before the engine starts, and cleared two suspects without a code change.
 - **Verify on the real system.** The adapter's lag and the probe that kept
-  waking the model only showed up on production.
+  waking the model were found on production, not on the twin.
 
 ## What it doesn't show
 

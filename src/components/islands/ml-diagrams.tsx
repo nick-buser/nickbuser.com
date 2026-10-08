@@ -96,8 +96,8 @@ export function GpuQueueTree() {
         }),
         n("batch", { x: 200, y: 290 }, {
           kind: "LOCALQUEUES",
-          label: "research · batch · ci",
-          sub: "experiments · CI",
+          label: "research · batch · ci · slurm",
+          sub: "experiments · CI · Slurm",
           flow: "tb",
         }),
         n("servingLlm", { x: 520, y: 290 }, {
@@ -243,7 +243,7 @@ export function TelemetryStackFlow() {
         n("artifacts", { x: 330, y: 70 }, {
           kind: "ARTIFACTS",
           label: "Run artifacts",
-          sub: "traces · sample tables",
+          sub: "content-addressed, linked to the run",
           tone: "warm",
         }),
         n("signoz", { x: 330, y: 320 }, {
@@ -255,7 +255,7 @@ export function TelemetryStackFlow() {
         n("record", { x: 640, y: 195 }, {
           kind: "RECORD",
           label: "The run",
-          sub: "joined on run id and pod",
+          sub: "its record carries run id and pod",
           tone: "warm",
         }),
       ]}
@@ -267,7 +267,7 @@ export function TelemetryStackFlow() {
         e("r-s", "run", "signoz", { animated: true }),
         e("l-s", "cluster", "signoz", { animated: true }),
         e("a-r", "artifacts", "record"),
-        e("s-r", "signoz", "record", { label: "run id · pod" }),
+        e("s-r", "signoz", "record", { label: "joined by run id · pod", dashed: true }),
       ]}
     />
   );

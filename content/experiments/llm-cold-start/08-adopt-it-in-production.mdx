@@ -2,7 +2,7 @@
 title: "Adopt it in production"
 step: 8
 verdict: "adopted"
-result: "Driver cache, pinned KV cache, no CUDA graphs. The production pod went from 145 s to 40 s to Ready, for a 0.8% batch-1 decode cost."
+result: "Driver cache, pinned KV cache, no CUDA graphs. The production pod went from 145 s to 40 s to Ready, for a 0.8% batch-1 decode cost on the twin."
 date: 2026-10-08
 ---
 
@@ -15,10 +15,10 @@ first answer, and graphs off, about 45.
 
 Production got the persistent driver cache, the pinned KV cache, and no CUDA
 graphs. Running without graphs won on wake to first answer, at a 0.8% cost to
-batch-1 decode, and the goal was the shortest cold start.
+batch-1 decode on the twin, and the goal was the shortest cold start.
 
 <Figure caption="The real pod, measured against its own log from the day before.">
-  <ColdStartBars set="cs10" />
+  <ColdStartBars set="production" />
 </Figure>
 
 ## The result

@@ -14,13 +14,13 @@ noisy number per attempt.
 ## The change
 
 A disposable twin of the production server, launched as an Argo workflow with
-the same model, flags, memory claim, memory limit and priority. A harness reads
+the same model, flags, memory claim and memory limit. A harness reads
 each run's vLLM log and pod conditions and splits the start into named phases.
 Each run writes a ledger row before anyone interprets it.
 
 ## The result
 
-The rig found its own defects first. The twin was killed for memory at a 4 GiB
+The rig turned up its own defects as it went. The twin was killed for memory at a 4 GiB
 limit, the workflow engine's artifact endpoints returned errors so the harness
 now reads object storage directly, a pod that never became Ready was parsed as
 zero seconds, and the decode benchmark read empty logs.
@@ -30,5 +30,5 @@ graphs: 52 seconds profiling their memory and 52 capturing them.
 
 ## The decision
 
-Every later change runs two or three times on the twin, on the same card, and is
-compared against this baseline.
+Later changes ran on the twin first, most of them two or three times on the
+same card, and were compared against this baseline.

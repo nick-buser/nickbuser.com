@@ -2,7 +2,7 @@
 title: "Persist the CUDA driver's kernel cache"
 step: 7
 verdict: "adopted"
-result: "Keeping the driver's compiled-kernel cache cut the start from 130 s to 50 s with graphs and from 80 s to 40 s without. The largest single gain."
+result: "Keeping the driver's compiled-kernel cache cut the start from 130 s to 51 s with graphs and from 80 s to 40 s without. The largest single gain."
 date: 2026-10-08
 ---
 
@@ -17,7 +17,7 @@ directory disappeared with every pod.
 `CUDA_CACHE_PATH` points at the persistent volume. The cache is 69 MB.
 
 <Figure caption="With the driver's cache kept, both configurations collapse, on the start and on the first answer.">
-  <ColdStartBars set="cs2f" />
+  <ColdStartBars set="driver-cache" />
 </Figure>
 
 ## The result

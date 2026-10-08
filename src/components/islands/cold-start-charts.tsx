@@ -47,9 +47,9 @@ const BAR_SETS: Record<string, BarSet> = {
         ],
       },
     ],
-    note: "Medians of three runs, except the first wake, which is one drill. Select a bar to open its step.",
+    note: "Medians of three runs, except the first wake: one drill, with a client retrying every 10 s. Select a bar to open its step.",
   },
-  cs1: {
+  "pin-kv": {
     title: "Time to Ready on the twin, median of three",
     views: [
       {
@@ -63,7 +63,7 @@ const BAR_SETS: Record<string, BarSet> = {
       },
     ],
   },
-  cs2: {
+  "fewer-graphs": {
     title: "Fewer CUDA graphs, as first measured on the twin",
     views: [
       {
@@ -88,14 +88,14 @@ const BAR_SETS: Record<string, BarSet> = {
       },
     ],
   },
-  cs2d: {
+  "fair-decode": {
     title: "The same arms, judged two ways",
     views: [
       {
         label: "Time to Ready",
         bars: [
           { label: "All graphs", value: 130, display: "130 s" },
-          { label: "Piecewise only", value: 90, display: "90 s" },
+          { label: "Piecewise only", value: 90, display: "90–91 s" },
           { label: "Piecewise, fewer sizes", value: 80, display: "80 s", emphasis: true },
           { label: "No graphs", value: 81, display: "81 s", emphasis: true },
         ],
@@ -121,7 +121,7 @@ const BAR_SETS: Record<string, BarSet> = {
     ],
     note: "Switch views: a 38% shorter start shrinks to a 7% shorter wait once the first answer is on the clock.",
   },
-  cs2e: {
+  "kernel-caches": {
     title: "Kernel caches on the persistent volume, twin, runs 2–3",
     views: [
       {
@@ -144,7 +144,7 @@ const BAR_SETS: Record<string, BarSet> = {
       },
     ],
   },
-  cs2f: {
+  "driver-cache": {
     title: "The CUDA driver's kernel cache kept on the volume, twin",
     views: [
       {
@@ -167,7 +167,7 @@ const BAR_SETS: Record<string, BarSet> = {
       },
     ],
   },
-  cs10: {
+  "production": {
     title: "The production pod, before and after",
     views: [
       {
@@ -181,7 +181,7 @@ const BAR_SETS: Record<string, BarSet> = {
     ],
     note: "The first start after the change fills the driver's cache, so it pays the old compile cost once.",
   },
-  cs4: {
+  "imports": {
     title: "The 22 seconds before the engine starts",
     views: [
       {
@@ -202,13 +202,13 @@ const BAR_SETS: Record<string, BarSet> = {
       },
     ],
   },
-  cs6: {
+  "sleep": {
     title: "Sleep mode against a full cold start",
     views: [
       {
         label: "Back to serving",
         bars: [
-          { label: "Off, cold start (prompt client)", value: 45.6, display: "45.6 s" },
+          { label: "Off, cold start at the time", value: 45.6, display: "45.6 s" },
           { label: "Level 2, page cache reclaimed", value: 16.9, display: "16.9 s" },
           { label: "Level 2, page cache warm", value: 2.0, display: "2.0 s", emphasis: true },
           { label: "Level 1", value: 0.8, display: "0.8 s", emphasis: true },
@@ -355,7 +355,7 @@ const LANES: Record<string, Lane> = {
   hold: {
     key: "hold",
     label: "Gateway holds the request",
-    ready: 40.5,
+    ready: 40,
     first: 41.4,
     rejects: [],
     detail:
@@ -364,7 +364,7 @@ const LANES: Record<string, Lane> = {
   fork: {
     key: "fork",
     label: "Held, engine forked",
-    ready: 35.5,
+    ready: 35,
     first: 36.5,
     rejects: [],
     detail:
@@ -373,9 +373,9 @@ const LANES: Record<string, Lane> = {
 };
 
 const LANE_SETS: Record<string, string[]> = {
-  cs5: ["retry", "poll"],
-  od3d: ["retry", "poll", "hold"],
-  cs10b: ["hold", "fork"],
+  "caller": ["retry", "poll"],
+  "hold": ["retry", "poll", "hold"],
+  "fork": ["hold", "fork"],
   all: ["retry", "poll", "hold", "fork"],
 };
 
