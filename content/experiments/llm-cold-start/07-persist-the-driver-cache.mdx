@@ -1,0 +1,38 @@
+---
+title: "Persist the CUDA driver's kernel cache"
+step: 7
+verdict: "adopted"
+result: "Keeping the driver's compiled-kernel cache cut the start from 130 s to 51 s with graphs and from 80 s to 40 s without. The largest single gain."
+date: 2026-10-08
+---
+
+## The hypothesis
+
+On this GPU generation, the driver compiles part of the image's kernels from PTX
+the first time they run, and caches the result in `~/.nv/ComputeCache`. That
+directory disappeared with every pod.
+
+## The change
+
+`CUDA_CACHE_PATH` points at the persistent volume. The cache is 69 MB.
+
+<Figure caption="With the driver's cache kept, both configurations collapse, on the start and on the first answer.">
+  <ColdStartBars set="driver-cache" />
+</Figure>
+
+## The result
+
+With CUDA graphs, the start fell from 130 to 50–51 seconds, and wake to first
+answer from about 135 to about 56. Without graphs, the start fell from 80 to
+40 seconds and the first request from 44.7 to 5.1. A 23-second FlashInfer
+autotune step at every start turned out to be the same compilation, and
+skipping autotune on its own changed nothing.
+
+The explanation is an inference. It fits every observation, but no driver-level
+trace confirmed which kernels were being compiled. A driver upgrade will make
+the next start pay the compile once and refill the cache.
+
+## The decision
+
+Adopt the cache. With it warm, graphs cost about ten seconds more start and save
+almost nothing on a short answer, which reopened graphs-or-not for production.

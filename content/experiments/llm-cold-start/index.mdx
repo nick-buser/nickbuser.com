@@ -1,0 +1,89 @@
+---
+title: "LLM cold start"
+description: "A 7B language model on a shared GPU, off by default and woken by the first request that needs it. Fifteen steps took a cold caller's wait from 151 seconds to 36.5, with no error responses."
+summary: "Waking a 7B on demand: a cold caller's wait from 151 s to 36.5 s, one measured step at a time."
+date: 2026-10-08
+project: "ml-orchestration-lab"
+stack: ["vllm", "cuda", "kueue", "argo workflows", "pytorch"]
+---
+
+The lab's one GPU, a 16 GB RTX 5060 Ti, is shared by four always-on models and
+a queue of experiments. A Qwen2.5-7B served by vLLM used to be started by hand
+and left running, holding about 12 GB of the card. I wanted three things: keep
+the card free for experiments, let any app's request wake the model, and make
+that wake as short as possible.
+
+## The result
+
+<Figure num="Fig. 1" caption="A cold caller's wait at each milestone. Select a bar to open the step that produced it.">
+  <ColdStartBars set="trail" />
+</Figure>
+
+The model is now off by default and wakes on its first request.
+A cold caller gets the first token 36.5 seconds after sending the request, with
+no error responses on the way. At the start the same wait was 151 seconds.
+After 60 idle minutes the model scales back to zero and the card is free again.
+On the twin, steady batch-1 decoding got 0.8% slower.
+
+<Figure num="Fig. 2" caption="Where a start's seconds go, before the series and after it. Most of the old start was engine work around CUDA graphs, and about 40 seconds of it appears to have been the driver compiling kernels.">
+  <StartupAnatomy />
+</Figure>
+
+## How it was measured
+
+- **A faithful twin.** A disposable copy of the production server, with the same
+  model, flags and memory claim, launched as a workflow. Experiments never
+  touched the live model.
+- **Startup split into phases.** A harness reads each run's server log and pod
+  events and splits the start into named phases: Python before the engine,
+  weights, graph profiling and capture, engine start, API server.
+- **A ledger written first.** Every run gets a row before anyone interprets it.
+  Most arms ran two or three times, on the same card.
+- **A rule set before measuring.** Adopt a change if it cuts the cold start by
+  at least 20% and costs at most 5% of batch-1 decode speed. Anything outside
+  the rule was a judgment call.
+- **The caller's clock.** Midway through, the deciding number changed from the
+  model's time to Ready to a real client's wait for its first token.
+
+## The steps
+
+<StepIndex />
+
+## What the series taught
+
+- **Judge a change by the wait a person feels.** Starting without CUDA graphs
+  looked 40% faster until the first request was timed. Later, a faster engine
+  stayed invisible to callers behind a stale retry hint.
+- **Keep the hypotheses that fail.** Persisting the framework kernel caches
+  changed nothing, and that ruled out a layer and pointed at the driver below it.
+- **Read logs as timing data.** The engine logged nothing for 40 seconds and
+  then answered in 5. The time was being spent somewhere it couldn't see.
+- **Attribute before optimizing.** An import profile explained 89% of the time
+  before the engine starts, and cleared two suspects without a code change.
+- **Verify on the real system.** The adapter's lag and the probe that kept
+  waking the model were found on production, not on the twin.
+
+## What it doesn't show
+
+- **The driver-cache explanation is an inference.** It fits every observation,
+  but no driver-level trace confirmed which kernels were being compiled.
+- **GPU-hours returned to experiments aren't measured yet.** That needs a week
+  of real traffic.
+- **Small samples on one host.** The numbers describe this card, this vLLM
+  version and this machine. They aren't general vLLM performance claims.
+- **Two systems in the before-and-after.** The baseline anatomy is the twin and
+  the final one is production, with different readiness probes. The engine
+  phases compare; the API-and-readiness segment doesn't.
+
+## Still open
+
+- **The keep-alive window, from real traffic.** GPU-hours held, cold starts and
+  added wait for idle windows from zero to two hours, across three states:
+  awake, asleep and off.
+- **Only inference should wake the model.** An automated client was waking it
+  every 30 minutes, which can keep it up indefinitely.
+- **The 12B's cold start.** It has the same driver cache now; its gain is
+  measured on its next wakes.
+- **Parked on purpose:** faster weight formats, since weights are about 6% of
+  the start, and restoring a snapshot of a warm engine, which needs a different
+  kind of node.

@@ -3,6 +3,7 @@ import { Fraunces, Spectral, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { site } from "@/lib/site";
 import { getAllWriting, getListedWork } from "@/lib/content";
+import { getAllSeries } from "@/lib/experiments";
 import { Providers } from "@/app/providers";
 import type { SearchItem } from "@/components/command-palette";
 import { SiteHeader } from "@/components/site-header";
@@ -62,6 +63,12 @@ export default function RootLayout({
       href: `/blog/${d.slug}`,
       group: "Blog",
       description: d.frontmatter.description,
+    })),
+    ...getAllSeries().map((s) => ({
+      title: s.frontmatter.title,
+      href: `/experiments/${s.slug}`,
+      group: "Experiments",
+      description: s.frontmatter.summary,
     })),
   ];
 

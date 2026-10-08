@@ -1,0 +1,35 @@
+---
+title: "Skip vLLM's memory-profiling pass"
+step: 3
+verdict: "adopted"
+result: "Pinning the KV cache size skipped a profiling pass: 141 s to 131 s. A shortcut that skipped graph memory accounting ran out of GPU memory and was rejected."
+date: 2026-10-08
+---
+
+## The problem
+
+Before it sizes the KV cache, vLLM runs a pass that measures how much memory the
+CUDA graphs will need. On the baseline that pass took about 52 seconds.
+
+## The change
+
+Three arms. One pins the KV cache size with `--kv-cache-memory`, so the pass
+isn't needed. One sets an environment variable that skips the graph-memory
+estimate. The third does both.
+
+<Figure caption="Pinning the cache size saves ten seconds with the same cache. Skipping the estimate crashed on a card shared with other models.">
+  <ColdStartBars set="pin-kv" />
+</Figure>
+
+## The result
+
+Pinning the cache cut the start to 131 seconds, about 7%, with the same cache
+size. The profiling pass had also been paying first-use kernel costs, and with
+it gone the one remaining capture paid them instead, so the saving was ten
+seconds, not fifty. The environment-variable arm ran out of GPU memory in two of three
+runs on the shared card, and the run that survived got a third of the KV cache.
+
+## The decision
+
+Keep the pinned cache size, which became part of the production change. Reject
+the shortcut.

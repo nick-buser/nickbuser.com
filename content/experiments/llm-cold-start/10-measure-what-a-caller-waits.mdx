@@ -1,0 +1,34 @@
+---
+title: "Measure what a caller waits"
+step: 10
+verdict: "method"
+result: "Through the gateway, a client that obeyed the retry hint got its first token at 150.3 s, and one that retried every 5 s at 45.6 s. The model was Ready at 41 s."
+date: 2026-10-08
+---
+
+## The problem
+
+Every number so far stopped at the model. Callers go through the gateway, which
+answered a cold request with a 503 and a `Retry-After` header.
+
+## The change
+
+An end-to-end mode for the harness. It scales the model to zero, sends a
+streaming request through the gateway, follows the 503s in one of two client
+styles, and times the first token.
+
+<Figure caption="The same cold start, seen by two clients. Pick a client to see what it went through.">
+  <ColdRequestTimeline set="caller" />
+</Figure>
+
+## The result
+
+The model was Ready at 41 seconds. A client that obeyed `Retry-After: 150`, a
+value sized for the old start, got its first token at 150.3 seconds. A client
+retrying every five seconds got it at 45.6. A warm request took 0.06 seconds,
+and runs agreed within a few hundredths of a second.
+
+## The decision
+
+The deciding number became a real client's wait. The stale retry hint was
+costing a well-behaved caller about 109 seconds.

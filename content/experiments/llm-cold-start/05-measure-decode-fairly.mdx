@@ -1,0 +1,31 @@
+---
+title: "Measure decode fairly"
+step: 5
+verdict: "method"
+result: "With a warm-up request first, steady decode was within 2% in every arm. The graph-less arms had moved 40 s to their first request, so wake to first answer improved only 7%."
+date: 2026-10-08
+---
+
+## The problem
+
+The decode benchmark timed the first requests after start, so it measured
+warm-up along with decoding.
+
+## The change
+
+One timed warm-up request before the decode benchmark, reported on its own.
+
+<Figure caption="Four arms, three ways. Time to Ready flatters the graph-less arms; wake to first answer doesn't.">
+  <ColdStartBars set="fair-decode" />
+</Figure>
+
+## The result
+
+Steady decode was within 2% in every arm. The graph-less arms paid about 40
+seconds on their first request instead of at startup. For a caller, wake to
+first full answer went from about 135 seconds to about 125 at best: 7%, not
+38%.
+
+## The decision
+
+From here on, a change was judged on wake to first answer, not on time to Ready.

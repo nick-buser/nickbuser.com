@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { site } from "@/lib/site";
 import { getAllWriting, getListedWork } from "@/lib/content";
+import { getAllSeries, getSteps } from "@/lib/experiments";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = site.url;
@@ -18,5 +19,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: d.frontmatter.updated ?? d.frontmatter.date,
   }));
 
-  return [...staticRoutes, ...work, ...blog];
+  const experiments: MetadataRoute.Sitemap = [
+    { url: `${base}/experiments`, lastModified: new Date() },
+    ...getAllSeries().flatMap((s) => [
+      { url: `${base}/experiments/${s.slug}`, lastModified: s.frontmatter.updated ?? s.frontmatter.date },
+      ...getSteps(s.slug).map((st) => ({
+        url: `${base}${st.href}`,
+        lastModified: st.frontmatter.date,
+      })),
+    ]),
+  ];
+
+  return [...staticRoutes, ...work, ...blog, ...experiments];
 }

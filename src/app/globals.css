@@ -1710,3 +1710,167 @@ pre[data-theme] {
   color: var(--muted-foreground);
   font-size: 14px;
 }
+
+/* ---- Experiment series — the step ledger, the pager, the chart controls ---- */
+.nb-steps {
+  margin: var(--space-5) 0 var(--space-6);
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule-warm);
+}
+.nb-steps__item {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  align-items: baseline;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border);
+}
+.nb-steps__num {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  color: var(--brass);
+}
+.nb-steps__main {
+  min-width: 0;
+}
+.nb-steps__title {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: 1.35;
+  color: var(--foreground);
+  text-decoration: none;
+  transition: color var(--dur-quick) var(--ease-heat);
+}
+a.nb-steps__title:hover {
+  color: var(--brass);
+}
+.nb-steps__result {
+  margin: 6px 0 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.nb-steps--compact .nb-steps__item {
+  padding: var(--space-2) 0;
+}
+.nb-steps--compact .nb-steps__title {
+  font-size: var(--text-sm);
+}
+.nb-steps__item[aria-current="step"] .nb-steps__title {
+  color: var(--brass);
+}
+@media (max-width: 640px) {
+  .nb-steps__item {
+    grid-template-columns: 2.25rem minmax(0, 1fr);
+  }
+  .nb-steps__item .nb-badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+.nb-steps-all {
+  margin-top: var(--space-7);
+}
+.nb-steps-all__label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--muted-foreground);
+}
+.nb-steps-all .nb-steps {
+  margin-top: var(--space-3);
+}
+
+.nb-pager {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
+}
+.nb-pager__link {
+  display: grid;
+  gap: 6px;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  text-decoration: none;
+  transition: border-color var(--dur-quick) var(--ease-heat);
+}
+.nb-pager__link:hover {
+  border-color: var(--brass);
+}
+.nb-pager__link--next {
+  text-align: right;
+}
+.nb-pager__dir {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--brass);
+}
+.nb-pager__title {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--foreground);
+}
+@media (max-width: 640px) {
+  .nb-pager {
+    grid-template-columns: 1fr;
+  }
+  .nb-pager__link--next {
+    text-align: left;
+  }
+}
+
+.nb-chart {
+  display: grid;
+  gap: var(--space-3);
+}
+.nb-chart__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.nb-chart__button {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: border-color var(--dur-quick) var(--ease-heat), color var(--dur-quick) var(--ease-heat);
+}
+.nb-chart__button:hover {
+  color: var(--foreground);
+}
+.nb-chart__button[aria-pressed="true"] {
+  border-color: var(--brass);
+  color: var(--brass);
+}
+.nb-chart__note {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.nb-chart a {
+  text-decoration: none;
+}
+.nb-chart a:hover text {
+  fill: var(--brass);
+}
