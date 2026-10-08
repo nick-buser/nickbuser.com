@@ -29,7 +29,9 @@ import {
   ColdStartBars,
   ColdRequestTimeline,
   StartupAnatomy,
+  StartupExplorer,
 } from "@/components/islands/cold-start-charts";
+import { WakePathFlow } from "@/components/islands/cold-start-diagrams";
 import { Callout } from "@/components/mdx/callout";
 import { Incident, Incidents } from "@/components/mdx/incident";
 import { Figure } from "@/components/mdx/figure";
@@ -76,6 +78,8 @@ export const mdxComponents = {
   ColdStartBars,
   ColdRequestTimeline,
   StartupAnatomy,
+  StartupExplorer,
+  WakePathFlow,
   OutboxTxnSvg,
   DeviceSinksSvg,
   VizPipelineSvg,

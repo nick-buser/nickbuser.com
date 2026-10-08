@@ -3,22 +3,33 @@ title: "Build the measurement rig"
 step: 2
 verdict: "method"
 result: "A twin of the production server, a harness that splits startup into phases, and a ledger. Baseline: 141 s to Ready."
+metrics:
+  - label: "Baseline to Ready"
+    value: "141 s"
+  - label: "Graph profiling and capture"
+    value: "104 s of it"
+  - label: "Runs per arm"
+    value: "mostly 3"
 date: 2026-10-08
 ---
 
-## The problem
+<Figure caption="The baseline, phase by phase. Graph profiling and capture are nearly three-quarters of the start.">
+  <StartupExplorer groups="2" />
+</Figure>
+
+## Problem
 
 Tuning the start by trial on the live model would break callers and produce one
 noisy number per attempt.
 
-## The change
+## Change
 
 A disposable twin of the production server, launched as an Argo workflow with
 the same model, flags, memory claim and memory limit. A harness reads
 each run's vLLM log and pod conditions and splits the start into named phases.
 Each run writes a ledger row before anyone interprets it.
 
-## The result
+## Result
 
 The rig turned up its own defects as it went. The twin was killed for memory at a 4 GiB
 limit, the workflow engine's artifact endpoints returned errors so the harness
@@ -28,7 +39,7 @@ zero seconds, and the decode benchmark read empty logs.
 The baseline was 141 seconds to Ready. 104 of them were engine work around CUDA
 graphs: 52 seconds profiling their memory and 52 capturing them.
 
-## The decision
+## Decision
 
 Later changes ran on the twin first, most of them two or three times on the
 same card, and were compared against this baseline.

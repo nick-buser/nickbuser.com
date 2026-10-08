@@ -3,22 +3,33 @@ title: "Make the model wakeable"
 step: 1
 verdict: "adopted"
 result: "The gateway wakes the 7B on the first request, and an idle reaper turns it off after an hour. The first clean drill took 151 s to a first answer."
+metrics:
+  - label: "First wake to answer"
+    value: "151 s"
+  - label: "Idle window"
+    value: "60 min"
+  - label: "Outage in the first drill"
+    value: "~16 min"
 date: 2026-10-08
 ---
 
-## The problem
+<Figure caption="The wake path. The gateway scales the model up when a request finds it cold, the reaper scales it down after an hour without one, and Kueue admits the pod into the one-LLM slot.">
+  <WakePathFlow />
+</Figure>
+
+## Problem
 
 The 7B held about 12 GB of the card around the clock. Turning it off broke
 every app that called it until someone turned it back on.
 
-## The change
+## Change
 
 The API gateway in front of the model scales it from zero to one replica when a
 request finds it cold. An idle reaper scales it back to zero after 60 minutes,
 counted from Ready and reset by every request. I picked 60 minutes over the 30
 first proposed. Fine-tuned adapters persist across restarts.
 
-## The result
+## Result
 
 The first live drill crashed the gateway: it couldn't handle the scaling API's
 response for a deployment at zero replicas, and the model was unavailable for
@@ -26,6 +37,6 @@ about 16 minutes. Tests built from captured real responses fixed it, and the
 drill script now restores the model if a drill fails. The next drill woke
 cleanly, 151 seconds from request to first answer.
 
-## The decision
+## Decision
 
 Wake-on-request stays. Everything after this is about making the wake short.

@@ -5,8 +5,7 @@ import { getAllSeries, getSeries, getSteps } from "@/lib/experiments";
 import { getWork } from "@/lib/content";
 import { formatDate } from "@/lib/format";
 import { Mdx } from "@/components/mdx/mdx";
-import { Chip } from "@/components/ui";
-import { StepList } from "@/components/experiment-steps";
+import { MetricTiles, StepMap } from "@/components/experiment-steps";
 
 type Params = Promise<{ series: string }>;
 
@@ -21,7 +20,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return { title: s.frontmatter.title, description: s.frontmatter.description };
 }
 
-/** A series overview: what was asked, the headline result, and every step, linked. */
+/** A series as one dense writeup: the result, the method, every step in brief, and a map of the step pages. */
 export default async function SeriesPage({ params }: { params: Params }) {
   const { series } = await params;
   const s = getSeries(series);
@@ -30,40 +29,27 @@ export default async function SeriesPage({ params }: { params: Params }) {
   const project = s.frontmatter.project ? getWork(s.frontmatter.project) : null;
 
   return (
-    <div className="nb-article nb-settle" style={{ padding: "56px 0 96px" }}>
+    <div className="nb-exp nb-settle">
       <Link href="/experiments" className="nb-extlink">
         ← Experiments
       </Link>
 
-      <header style={{ margin: "28px 0 var(--space-7)" }}>
-        <p className="nb-article__eyebrow">Experiment series</p>
-        <h1 className="nb-article__title">{s.frontmatter.title}</h1>
-        <p className="nb-article__lead">{s.frontmatter.description}</p>
-        <div className="nb-article__meta">
-          <span>{formatDate(s.frontmatter.updated ?? s.frontmatter.date, "long")}</span>
-          <span className="nb-article__meta-sep" aria-hidden>
-            ·
-          </span>
+      <header className="nb-exp__head">
+        <p className="nb-exp__eyebrow">
+          <span>Experiment series</span>
           <span>{steps.length} steps</span>
-        </div>
-        {s.frontmatter.stack.length ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: "var(--space-4)" }}>
-            {s.frontmatter.stack.map((c) => (
-              <Chip key={c}>{c}</Chip>
-            ))}
-          </div>
-        ) : null}
-        {project ? (
-          <p style={{ marginTop: "var(--space-5)" }}>
-            <Link href={`/work/${project.slug}`} className="nb-extlink">
-              Runs on: {project.frontmatter.title} →
-            </Link>
-          </p>
-        ) : null}
+          <span>{formatDate(s.frontmatter.updated ?? s.frontmatter.date, "long")}</span>
+          {project ? (
+            <Link href={`/work/${project.slug}`}>Runs on {project.frontmatter.title}</Link>
+          ) : null}
+        </p>
+        <h1 className="nb-exp__title">{s.frontmatter.title}</h1>
+        <p className="nb-exp__lead">{s.frontmatter.description}</p>
+        <MetricTiles metrics={s.frontmatter.metrics} />
       </header>
 
-      <article className="prose nb-prose">
-        <Mdx source={s.content} components={{ StepIndex: () => <StepList steps={steps} /> }} />
+      <article className="nb-dense">
+        <Mdx source={s.content} components={{ StepIndex: () => <StepMap steps={steps} /> }} />
       </article>
     </div>
   );

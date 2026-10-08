@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { GROUPS, PHASES, medianRun, segments, type Run } from "@/components/islands/cold-start-data";
 
 /**
  * Interactive charts for the LLM cold-start series (content/experiments/llm-cold-start).
@@ -11,6 +12,15 @@ import { useState } from "react";
 const mono = "var(--font-mono)";
 const body = "var(--font-body)";
 const STEP = "/experiments/llm-cold-start";
+const STEP_SLUGS: Record<number, string> = {
+  2: "02-build-the-measurement-rig",
+  3: "03-skip-the-memory-profiling-pass",
+  4: "04-capture-fewer-cuda-graphs",
+  5: "05-measure-decode-fairly",
+  6: "06-persist-the-kernel-caches",
+  7: "07-persist-the-driver-cache",
+  11: "11-attribute-the-22-seconds",
+};
 
 interface Bar {
   label: string;
@@ -231,6 +241,34 @@ const BAR_SETS: Record<string, BarSet> = {
       },
     ],
     note: "The resident models hold about 3.3 GB of the card in every case.",
+  },
+  adapter: {
+    title: "When the fine-tuned adapter was ready, relative to the model",
+    views: [
+      {
+        label: "Seconds after the model reported Ready",
+        bars: [
+          { label: "Before the fix", value: 21, display: "+21 s" },
+          { label: "After the fix", value: 0.5, display: "about 1 s before Ready", emphasis: true },
+        ],
+      },
+    ],
+  },
+  "cache-sizes": {
+    title: "Each service's CUDA driver cache",
+    views: [
+      {
+        label: "Size",
+        bars: [
+          { label: "The 7B (fp8, LoRA kernels)", value: 69000, display: "69 MB", emphasis: true },
+          { label: "Embedding server", value: 6500, display: "6.5 MB", emphasis: true },
+          { label: "Text-to-speech", value: 112, display: "112 KB" },
+          { label: "Speech-to-text", value: 4, display: "4 KB" },
+          { label: "Object detection", value: 0, display: "none" },
+        ],
+      },
+    ],
+    note: "Only the vLLM servers compile enough to matter, so only they keep the cache.",
   },
 };
 
@@ -597,6 +635,168 @@ export function StartupAnatomy() {
           : "Hover or tap a segment for its time."}{" "}
         The two rows come from different systems: the twin's readiness probe runs every 10 s and
         production's every 5 s, so only the engine phases compare directly.
+      </p>
+    </div>
+  );
+}
+
+
+/**
+ * Every measured start of the twin, as a stacked bar of its phases, grouped by
+ * the step that ran it. `groups` limits it to some steps ("3" or "2,3"); `first`
+ * starts with the first answer added on top of Ready.
+ */
+export function StartupExplorer({ groups, first = "off" }: { groups?: string; first?: "on" | "off" }) {
+  const wanted = groups ? groups.split(",").map((g) => Number(g.trim())) : null;
+  const shown = GROUPS.filter((g) => !wanted || wanted.includes(g.step));
+  const [every, setEvery] = useState(false);
+  const [withFirst, setWithFirst] = useState(first === "on");
+  const [hover, setHover] = useState<string | null>(null);
+  const anyFirst = shown.some((g) => g.arms.some((a) => a.runs.some((x) => x.first !== undefined)));
+
+  type Row = { key: string; label: string; run: Run | null; note?: string };
+  const blocks = shown.map((g) => {
+    const rows: Row[] = [];
+    for (const a of g.arms) {
+      if (every) {
+        for (const x of a.runs) {
+          rows.push({
+            key: `${g.step}/${a.label}/${x.run}`,
+            label: `${a.label} · run ${x.run}`,
+            run: x.failed ? null : x,
+            note: x.failed ?? (x.fill ? "fills its cache" : undefined),
+          });
+        }
+      } else {
+        const m = medianRun(a);
+        const failed = a.runs.filter((x) => x.failed).length;
+        rows.push({
+          key: `${g.step}/${a.label}`,
+          label: a.label,
+          run: m,
+          note: m ? (failed ? `${failed} of ${a.runs.length} runs failed` : undefined) : "no clean run",
+        });
+      }
+    }
+    return { group: g, rows };
+  });
+
+  const span = 180;
+  const W = 1000;
+  const labelW = 250;
+  const barW = W - labelW - 70;
+  const x = (s: number) => labelW + (s / span) * barW;
+  const rowH = 20;
+  const headH = 26;
+  let y = 30;
+  const layout = blocks.map((b) => {
+    const top = y;
+    y += headH + b.rows.length * rowH + 6;
+    return { ...b, top };
+  });
+  const height = y + 26;
+
+  const found = hover ? hover.split("|") : null;
+
+  return (
+    <div className="nb-chart">
+      <div className="nb-chart__controls" role="group" aria-label="Chart options">
+        <button type="button" className="nb-chart__button" aria-pressed={!every} onClick={() => setEvery(false)}>
+          Median run
+        </button>
+        <button type="button" className="nb-chart__button" aria-pressed={every} onClick={() => setEvery(true)}>
+          Every run
+        </button>
+        {anyFirst ? (
+          <button
+            type="button"
+            className="nb-chart__button"
+            aria-pressed={withFirst}
+            onClick={() => setWithFirst((v) => !v)}
+          >
+            {withFirst ? "Ready + first answer" : "Time to Ready"}
+          </button>
+        ) : null}
+      </div>
+      <svg viewBox={`0 0 ${W} ${height}`} role="img" aria-label="Startup phases of every measured start" style={{ width: "100%", height: "auto", display: "block" }}>
+        {[0, 30, 60, 90, 120, 150, 180].map((t) => (
+          <g key={t}>
+            <line x1={x(t)} x2={x(t)} y1={24} y2={height - 22} style={{ stroke: "var(--border)", strokeWidth: 1 }} />
+            <text x={x(t)} y={height - 8} textAnchor="middle" style={{ fontFamily: mono, fontSize: 11, fill: "var(--muted-foreground)" }}>
+              {t === 0 ? "0 s" : t}
+            </text>
+          </g>
+        ))}
+        {layout.map(({ group, rows, top }) => (
+          <g key={group.step}>
+            <a href={`${STEP}/${STEP_SLUGS[group.step]}`} style={{ textDecoration: "none" }}>
+              <text x={0} y={top + 16} style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.08em", fill: "var(--brass)" }}>
+                {`STEP ${String(group.step).padStart(2, "0")} · ${group.title.toUpperCase()}`}
+              </text>
+            </a>
+            {rows.map((row, i) => {
+              const ry = top + headH + i * rowH;
+              let cursor = labelW;
+              const segs = row.run ? segments(row.run, withFirst) : null;
+              const total = row.run ? row.run.total + (withFirst && row.run.first !== undefined ? row.run.first : 0) : 0;
+              return (
+                <g key={row.key}>
+                  <text x={0} y={ry + 13} style={{ fontFamily: body, fontSize: 13, fill: "var(--foreground)" }}>
+                    {row.label}
+                  </text>
+                  {segs
+                    ? PHASES.map((p) => {
+                        const v = segs[p.key];
+                        if (v <= 0) return null;
+                        const w = (v / span) * barW;
+                        const id = `${row.label}|${p.label}|${v.toFixed(1)}`;
+                        const rect = (
+                          <rect
+                            key={p.key}
+                            x={cursor}
+                            y={ry + 3}
+                            width={Math.max(w - 0.6, 0.6)}
+                            height={rowH - 6}
+                            style={{
+                              fill: p.color,
+                              opacity: hover && !hover.startsWith(`${row.label}|${p.label}|`) ? 0.45 : 0.92,
+                              cursor: "pointer",
+                            }}
+                            onMouseEnter={() => setHover(id)}
+                            onMouseLeave={() => setHover(null)}
+                            onClick={() => setHover(id)}
+                          >
+                            <title>{`${p.label}: ${v.toFixed(1)} s`}</title>
+                          </rect>
+                        );
+                        cursor += w;
+                        return rect;
+                      })
+                    : null}
+                  <text
+                    x={segs ? Math.min(cursor + 6, W - 66) : labelW}
+                    y={ry + 13}
+                    style={{ fontFamily: mono, fontSize: 11, fill: "var(--muted-foreground)" }}
+                  >
+                    {segs ? `${Math.round(total)} s${row.note ? ` · ${row.note}` : ""}` : row.note}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        ))}
+      </svg>
+      <div className="nb-legend" aria-hidden>
+        {PHASES.filter((p) => p.key !== "first" || withFirst).map((p) => (
+          <span key={p.key} className="nb-legend__item">
+            <span className="nb-legend__swatch" style={{ background: p.color }} />
+            {p.label}
+          </span>
+        ))}
+      </div>
+      <p className="nb-chart__note">
+        {found ? `${found[0]}. ${found[1]}: ${found[2]} s. ` : "Hover or tap a segment for its time. "}
+        The twin's readiness probe runs every 10 s, so totals land on 10-second steps and the last segment absorbs the wait.
       </p>
     </div>
   );
