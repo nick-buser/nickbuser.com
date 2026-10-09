@@ -2404,6 +2404,20 @@ a.nb-rows__track:hover .nb-bar {
   .nb-rows__spacer {
     display: none;
   }
+  /* stacked, a value moves up to the right of its label and the bar gets the
+     whole width; lanes keep their reserve, since their value rides the dot */
+  .nb-rows:not(.nb-rows--lanes) :is(.nb-rows__track, .nb-axis) {
+    --reserve: 0px;
+  }
+  .nb-rows:not(.nb-rows--lanes) .nb-rows__label {
+    padding-right: var(--reserve);
+  }
+  .nb-rows__track > .nb-rows__value:not(.nb-rows__value--alone) {
+    position: absolute;
+    right: 0;
+    bottom: 100%;
+    margin: 0;
+  }
 }
 
 /* the 7B's life cycle: states in a row, the way back to sleep underneath */

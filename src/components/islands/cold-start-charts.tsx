@@ -470,7 +470,10 @@ export function ColdRequestTimeline({ set = "all" }: { set?: string }) {
         onPick={(i) => setPicked(lanes[i].key)}
         name="Choose a client"
       />
-      <div className="nb-rows" style={vars({ "--reserve": reserve(lanes.map((l) => `${l.first} s`)) })}>
+      <div
+        className="nb-rows nb-rows--lanes"
+        style={vars({ "--reserve": reserve(lanes.map((l) => `${l.first} s`)) })}
+      >
         {lanes.map((l) => {
           const on = l.key === current.key;
           const at = (s: number) => along(s / LANE_SPAN);
