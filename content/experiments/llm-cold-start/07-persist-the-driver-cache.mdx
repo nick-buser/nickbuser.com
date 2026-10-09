@@ -3,24 +3,33 @@ title: "Persist the CUDA driver's kernel cache"
 step: 7
 verdict: "adopted"
 result: "Keeping the driver's compiled-kernel cache cut the start from 130 s to 51 s with graphs and from 80 s to 40 s without. The largest single gain."
+metrics:
+  - label: "Ready, no graphs"
+    value: "80 → 40 s"
+  - label: "Ready, with graphs"
+    value: "130 → 51 s"
+  - label: "First request, no graphs"
+    value: "44.7 → 5.1 s"
+  - label: "Cache size"
+    value: "69 MB"
 date: 2026-10-08
 ---
 
-## The hypothesis
+<Figure caption="With the driver's cache kept, the 45 seconds of engine start and the 44-second first request both disappear.">
+  <StartupExplorer groups="6,7" first="on" />
+</Figure>
+
+## Hypothesis
 
 On this GPU generation, the driver compiles part of the image's kernels from PTX
 the first time they run, and caches the result in `~/.nv/ComputeCache`. That
 directory disappeared with every pod.
 
-## The change
+## Change
 
 `CUDA_CACHE_PATH` points at the persistent volume. The cache is 69 MB.
 
-<Figure caption="With the driver's cache kept, both configurations collapse, on the start and on the first answer.">
-  <ColdStartBars set="driver-cache" />
-</Figure>
-
-## The result
+## Result
 
 With CUDA graphs, the start fell from 130 to 50–51 seconds, and wake to first
 answer from about 135 to about 56. Without graphs, the start fell from 80 to
@@ -32,7 +41,7 @@ The explanation is an inference. It fits every observation, but no driver-level
 trace confirmed which kernels were being compiled. A driver upgrade will make
 the next start pay the compile once and refill the cache.
 
-## The decision
+## Decision
 
 Adopt the cache. With it warm, graphs cost about ten seconds more start and save
 almost nothing on a short answer, which reopened graphs-or-not for production.

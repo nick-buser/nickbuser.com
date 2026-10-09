@@ -3,26 +3,33 @@ title: "The adapter lagged the model"
 step: 9
 verdict: "fixed"
 result: "The fine-tuned adapter loaded 21 s after the model was Ready. A fixed 2-second check now loads it about 1 s before."
+metrics:
+  - label: "Adapter ready after the model"
+    value: "+21 s → −1 s"
 date: 2026-10-08
 ---
 
-## The problem
+<Figure caption="The adapter used to arrive 21 seconds after the model. Now it is ready first.">
+  <ColdStartBars set="adapter" />
+</Figure>
+
+## Problem
 
 Found while verifying the production change: the LoRA adapter loaded 21 seconds
 after the model was Ready. Its loader backed off up to 30 seconds between health
 checks, which was invisible against a 140-second start.
 
-## The change
+## Change
 
 A fixed two-second health check.
 
-## The result
+## Result
 
 The adapter now loads about a second before the pod reports Ready. The first
 version of the new unit test also passed against the old code. That was caught
 and fixed before merge.
 
-## The decision
+## Decision
 
 Fixed. A request for the adapter no longer waits on a back-off timer after the
 model is up.

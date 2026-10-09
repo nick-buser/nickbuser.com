@@ -1,9 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getAllSeries, getSeries, getStep, getSteps } from "@/lib/experiments";
 import { Mdx } from "@/components/mdx/mdx";
-import { StepList, StepPager, VerdictBadge } from "@/components/experiment-steps";
+import { MetricTiles, StepPager, StepRail, VerdictBadge } from "@/components/experiment-steps";
 
 type Params = Promise<{ series: string; step: string }>;
 
@@ -24,7 +23,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-/** One step of a series: problem, change, result and decision, then the way on. */
+/** One step of a series: its numbers and chart first, then problem, change, result and decision. */
 export default async function StepPage({ params }: { params: Params }) {
   const { series, step } = await params;
   const s = getSeries(series);
@@ -35,32 +34,27 @@ export default async function StepPage({ params }: { params: Params }) {
   const seriesHref = `/experiments/${s.slug}`;
 
   return (
-    <div className="nb-article nb-settle" style={{ padding: "56px 0 96px" }}>
-      <Link href={seriesHref} className="nb-extlink">
-        ← {s.frontmatter.title}
-      </Link>
+    <div className="nb-exp nb-exp--rail nb-settle">
+      <StepRail seriesTitle={s.frontmatter.title} seriesHref={seriesHref} steps={steps} current={st.slug} />
+      <div className="nb-exp__main">
+        <header className="nb-exp__head">
+          <p className="nb-exp__eyebrow">
+            <span>
+              Step {st.frontmatter.step} of {steps.length}
+            </span>
+            <VerdictBadge verdict={st.frontmatter.verdict} />
+          </p>
+          <h1 className="nb-exp__title">{st.frontmatter.title}</h1>
+          <p className="nb-exp__lead">{st.frontmatter.result}</p>
+          <MetricTiles metrics={st.frontmatter.metrics} />
+        </header>
 
-      <header style={{ margin: "28px 0 var(--space-6)" }}>
-        <p className="nb-article__eyebrow">
-          Step {st.frontmatter.step} of {steps.length}
-        </p>
-        <h1 className="nb-article__title">{st.frontmatter.title}</h1>
-        <div style={{ marginTop: "var(--space-3)" }}>
-          <VerdictBadge verdict={st.frontmatter.verdict} />
-        </div>
-        <p className="nb-article__lead">{st.frontmatter.result}</p>
-      </header>
+        <article className="nb-dense nb-dense--step">
+          <Mdx source={st.content} />
+        </article>
 
-      <article className="prose nb-prose">
-        <Mdx source={st.content} />
-      </article>
-
-      <StepPager prev={steps[i - 1]} next={steps[i + 1]} seriesHref={seriesHref} />
-
-      <section className="nb-steps-all" aria-label="Every step in this series">
-        <p className="nb-steps-all__label">The series</p>
-        <StepList steps={steps} current={st.slug} compact />
-      </section>
+        <StepPager prev={steps[i - 1]} next={steps[i + 1]} seriesHref={seriesHref} />
+      </div>
     </div>
   );
 }

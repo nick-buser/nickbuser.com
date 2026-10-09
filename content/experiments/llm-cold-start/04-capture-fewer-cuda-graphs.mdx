@@ -3,29 +3,38 @@ title: "Capture fewer CUDA graphs, or none"
 step: 4
 verdict: "suspect"
 result: "Piecewise CUDA graphs or none cut the start by 36–43%, and seemed to cut batch-1 decode from 52 to 14 tokens/s."
+metrics:
+  - label: "Time to Ready"
+    value: "130 → 80 s"
+  - label: "Batch-1 decode, as measured"
+    value: "52 → 14 tok/s"
 date: 2026-10-08
 ---
 
-## The problem
+<Figure caption="Dropping graphs removes the capture time. The rest of the engine start stays at about 45 seconds in every arm.">
+  <StartupExplorer groups="4" />
+</Figure>
+
+## Problem
 
 Capturing CUDA graphs still took 52 seconds of a 130-second start.
 
-## The change
+## Change
 
 Four arms: fewer capture sizes, piecewise graphs only, piecewise with fewer
 sizes, and no graphs at all with `--enforce-eager`.
 
-<Figure caption="Switch to the decode view: the faster starts came with a decode loss far too large for the change.">
-  <ColdStartBars set="fewer-graphs" />
-</Figure>
-
-## The result
+## Result
 
 Piecewise graphs started in 90 seconds, piecewise with fewer sizes in 80, and no
 graphs in 81: 36–43% shorter than the baseline. Batch-1 decode in every
 graph-less arm appeared to fall from 52 to 14 tokens per second.
 
-## The decision
+<Figure caption="Switch to the decode view: as first measured, batch-1 decode collapsed in every arm with fewer graphs.">
+  <ColdStartBars set="fewer-graphs" />
+</Figure>
+
+## Decision
 
 A 73% decode loss didn't fit a change this size, so it was treated as a
 measurement error until shown otherwise.

@@ -1,89 +1,147 @@
 ---
 title: "LLM cold start"
-description: "A 7B language model on a shared GPU, off by default and woken by the first request that needs it. Fifteen steps took a cold caller's wait from 151 seconds to 36.5, with no error responses."
+description: "A 7B language model on a shared GPU, off by default and woken by its first request. Fifteen measured steps took a cold caller's wait from 151 seconds to 36.5, with no error responses."
 summary: "Waking a 7B on demand: a cold caller's wait from 151 s to 36.5 s, one measured step at a time."
 date: 2026-10-08
 project: "ml-orchestration-lab"
 stack: ["vllm", "cuda", "kueue", "argo workflows", "pytorch"]
+metrics:
+  - label: "Cold caller's first token"
+    value: "151 → 36.5 s"
+  - label: "7B time to Ready, production"
+    value: "145 → 35 s"
+  - label: "503s on a cold request"
+    value: "0"
+    note: "was 1 to 15, by client"
+  - label: "Batch-1 decode cost"
+    value: "−0.8%"
+    note: "on the twin"
 ---
 
-The lab's one GPU, a 16 GB RTX 5060 Ti, is shared by four always-on models and
-a queue of experiments. A Qwen2.5-7B served by vLLM used to be started by hand
-and left running, holding about 12 GB of the card. I wanted three things: keep
-the card free for experiments, let any app's request wake the model, and make
-that wake as short as possible.
+The lab's one GPU, a 16 GB RTX 5060 Ti, is shared by four always-on models and a
+queue of experiments. A Qwen2.5-7B served by vLLM used to be started by hand and
+left running, holding about 12 GB of the card. I wanted three things: keep the
+card free for experiments, let any app's request wake the model, and make that
+wake as short as possible. Fifteen measured steps got there.
 
-## The result
-
-<Figure num="Fig. 1" caption="A cold caller's wait at each milestone. Select a bar to open the step that produced it.">
-  <ColdStartBars set="trail" />
-</Figure>
-
-The model is now off by default and wakes on its first request.
-A cold caller gets the first token 36.5 seconds after sending the request, with
-no error responses on the way. At the start the same wait was 151 seconds.
-After 60 idle minutes the model scales back to zero and the card is free again.
-On the twin, steady batch-1 decoding got 0.8% slower.
-
-<Figure num="Fig. 2" caption="Where a start's seconds go, before the series and after it. Most of the old start was engine work around CUDA graphs, and about 40 seconds of it appears to have been the driver compiling kernels.">
-  <StartupAnatomy />
+<Figure num="Fig. 1" caption="The wake path. A request that finds the model at zero makes the gateway scale it up, Kueue admits it into the one-LLM slot, and the idle reaper scales it back down after an hour without requests.">
+  <WakePathFlow />
 </Figure>
 
 ## How it was measured
 
-- **A faithful twin.** A disposable copy of the production server, with the same
-  model, flags and memory claim, launched as a workflow. Experiments never
-  touched the live model.
-- **Startup split into phases.** A harness reads each run's server log and pod
-  events and splits the start into named phases: Python before the engine,
-  weights, graph profiling and capture, engine start, API server.
-- **A ledger written first.** Every run gets a row before anyone interprets it.
-  Most arms ran two or three times, on the same card.
-- **A rule set before measuring.** Adopt a change if it cuts the cold start by
-  at least 20% and costs at most 5% of batch-1 decode speed. Anything outside
-  the rule was a judgment call.
-- **The caller's clock.** Midway through, the deciding number changed from the
-  model's time to Ready to a real client's wait for its first token.
+Engine changes ran first on a **twin**: a disposable copy of the production server
+with the same model, flags and memory claim, launched as an Argo workflow, so
+experiments never touched the live model. A harness read each run's vLLM log and
+pod events and split the start into named phases, and wrote a ledger row before
+anyone interpreted it. Most arms ran two or three times on the same card. The
+adoption rule was set before the first measurement: keep a change if it cuts the
+cold start by at least 20% and costs at most 5% of batch-1 decode speed.
+Anything outside that was a judgment call. Midway through, the deciding number
+changed from the model's time to Ready to a real client's wait for its first
+token.
 
-## The steps
+## The engine: 141 seconds to 40
+
+<Figure num="Fig. 2" caption="Every measured start on the twin, phase by phase, grouped by step. Switch to every run to see cache fills and failures, and add the first answer to see what the graph-less arms deferred. Each group links to its step.">
+  <StartupExplorer first="off" />
+</Figure>
+
+The baseline took 141 seconds to Ready, and 104 of them were engine work around
+CUDA graphs: 52 seconds profiling their memory and 52 capturing them
+([step 2](/experiments/llm-cold-start/02-build-the-measurement-rig)). Pinning the
+KV cache size skipped the profiling pass but saved only ten seconds, because the
+pass had been paying first-use kernel costs that the capture then paid instead
+([3](/experiments/llm-cold-start/03-skip-the-memory-profiling-pass)). Capturing
+fewer graphs, or none, cut the start by up to 43%, and appeared to wreck batch-1
+decode ([4](/experiments/llm-cold-start/04-capture-fewer-cuda-graphs)).
+
+A warm-up request before the decode benchmark showed steady decode within 2% in
+every arm. The graph-less arms had only moved about 40 seconds from startup to
+their first request, so a caller's wake-to-answer improved by 7%, not 38%
+([5](/experiments/llm-cold-start/05-measure-decode-fairly)). That changed the
+yardstick for everything after it. Turn on the first answer in Fig. 2 and the
+graph-less arms' lead mostly disappears.
+
+The 40 seconds looked like framework kernel compilation repeated on every pod
+start. Keeping Triton's and FlashInfer's caches on a persistent volume changed
+nothing ([6](/experiments/llm-cold-start/06-persist-the-kernel-caches)), but the
+engine log showed it idle for 40 seconds before answering in 5, and a
+neighbouring pod held a cache from the CUDA driver itself. On this GPU
+generation the driver compiles part of the image's kernels from PTX on first use
+and caches the result in the container's home directory, which disappeared with
+every pod. Keeping that 69 MB cache on the volume cut the start from 80 seconds
+to 40 without graphs, and the first request from 44.7 seconds to 5.1
+([7](/experiments/llm-cold-start/07-persist-the-driver-cache)). It was the
+largest single gain, and its explanation is an inference that fits every
+observation without a driver-level trace to confirm it.
+
+Production took the driver cache, the pinned KV cache and no CUDA graphs. The
+real pod went from 145 seconds to 40 to Ready, with a first 256-token answer in
+5.2 ([8](/experiments/llm-cold-start/08-adopt-it-in-production)).
+
+## The caller: 151 seconds to 36.5
+
+<Figure num="Fig. 3" caption="A cold request from send to first token, for each client behaviour and gateway change. Pick one to see what the caller went through.">
+  <ColdRequestTimeline set="all" />
+</Figure>
+
+Verifying the production change turned up a fine-tuned adapter that loaded 21
+seconds after the model, because its loader backed off between health checks.
+A fixed two-second check now has it ready first
+([9](/experiments/llm-cold-start/09-the-adapter-lagged-the-model)).
+
+Every number so far stopped at the model. Timing a real client through the
+gateway showed the model Ready at 41 seconds and a well-behaved client still
+waiting until 150.3, because the gateway's `Retry-After: 150` had been sized for
+the old start. A client polling every five seconds got its first token at 45.6
+([10](/experiments/llm-cold-start/10-measure-what-a-caller-waits)). The gateway
+now holds a cold request for up to 60 seconds and forwards it the moment the
+model is Ready, so the caller sees one slow answer and no 503: 41.4 seconds
+([14](/experiments/llm-cold-start/14-hold-the-cold-request)).
+
+That left Python before the engine as the largest phase. An import profile
+attributed 89% of it to imports, paid twice because vLLM spawns its engine
+process and the engine imports everything again
+([11](/experiments/llm-cold-start/11-attribute-the-22-seconds)). Forking the
+process instead fell short of the 20% rule, so adopting it was a judgment call,
+and I made it. A cold caller's first token now arrives in 36.5 seconds, median
+of three, with no 503s ([15](/experiments/llm-cold-start/15-fork-the-engine-process)).
+
+<Figure num="Fig. 4" caption="A cold caller's wait at each milestone. Select a bar to open its step.">
+  <ColdStartBars set="trail" />
+</Figure>
+
+## What didn't make it in
+
+vLLM's sleep mode freed about 11.5 GiB of the card and served again in two
+seconds or less with a warm page cache, but a sleeping model keeps its Kueue quota, and level 1 parks 14 GiB
+in host memory on a host that has hung under memory pressure. Level 2 becomes a
+third state in deciding how long to keep the model up
+([12](/experiments/llm-cold-start/12-sleep-mode-as-a-middle-tier)). The driver
+cache setting moved into the shared chart for every vLLM service. The other GPU
+services' caches were 112 KB or less, so they were left alone
+([13](/experiments/llm-cold-start/13-the-driver-cache-everywhere)).
+
+## Every step
 
 <StepIndex />
 
-## What the series taught
+## What it taught, and what it doesn't show
 
-- **Judge a change by the wait a person feels.** Starting without CUDA graphs
-  looked 40% faster until the first request was timed. Later, a faster engine
-  stayed invisible to callers behind a stale retry hint.
-- **Keep the hypotheses that fail.** Persisting the framework kernel caches
-  changed nothing, and that ruled out a layer and pointed at the driver below it.
-- **Read logs as timing data.** The engine logged nothing for 40 seconds and
-  then answered in 5. The time was being spent somewhere it couldn't see.
-- **Attribute before optimizing.** An import profile explained 89% of the time
-  before the engine starts, and cleared two suspects without a code change.
-- **Verify on the real system.** The adapter's lag and the probe that kept
-  waking the model were found on production, not on the twin.
-
-## What it doesn't show
-
-- **The driver-cache explanation is an inference.** It fits every observation,
-  but no driver-level trace confirmed which kernels were being compiled.
-- **GPU-hours returned to experiments aren't measured yet.** That needs a week
-  of real traffic.
+- **Judge a change by the wait a person feels.** Twice the yardstick moved to
+  the caller's clock: when the first request was timed, and when the gateway's
+  retry hint hid a faster engine.
+- **Keep the hypotheses that fail.** The framework caches changing nothing ruled
+  out a layer and pointed at the driver below it.
+- **Attribute before optimizing.** The import profile explained 89% of the time
+  before the engine and cleared two suspects without a code change.
+- **Verify on the real system.** The adapter's lag and a probe that kept waking
+  the model were found on production, not on the twin.
 - **Small samples on one host.** The numbers describe this card, this vLLM
-  version and this machine. They aren't general vLLM performance claims.
-- **Two systems in the before-and-after.** The baseline anatomy is the twin and
-  the final one is production, with different readiness probes. The engine
-  phases compare; the API-and-readiness segment doesn't.
+  version and this machine. GPU-hours returned to experiments aren't measured
+  yet, and that needs a week of real traffic.
 
-## Still open
-
-- **The keep-alive window, from real traffic.** GPU-hours held, cold starts and
-  added wait for idle windows from zero to two hours, across three states:
-  awake, asleep and off.
-- **Only inference should wake the model.** An automated client was waking it
-  every 30 minutes, which can keep it up indefinitely.
-- **The 12B's cold start.** It has the same driver cache now; its gain is
-  measured on its next wakes.
-- **Parked on purpose:** faster weight formats, since weights are about 6% of
-  the start, and restoring a snapshot of a warm engine, which needs a different
-  kind of node.
+Still open: choosing the keep-alive window from real traffic, waking only for
+inference requests so an uptime check can't keep the model up, and measuring
+the 12B's gain from the same driver cache.

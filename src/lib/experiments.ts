@@ -14,6 +14,14 @@ import { z } from "zod";
 
 const EXPERIMENTS_DIR = path.join(process.cwd(), "content", "experiments");
 
+/** A headline number shown as a tile: "Time to Ready" / "141 → 131 s". */
+const metric = z.object({
+  label: z.string(),
+  value: z.string(),
+  note: z.string().optional(),
+});
+export type Metric = z.infer<typeof metric>;
+
 export const seriesFrontmatter = z.object({
   title: z.string(),
   description: z.string(),
@@ -23,6 +31,7 @@ export const seriesFrontmatter = z.object({
   /** The writeup for the project this series runs on, by slug. */
   project: z.string().optional(),
   stack: z.array(z.string()).default([]),
+  metrics: z.array(metric).default([]),
   draft: z.boolean().default(false),
 });
 export type SeriesFrontmatter = z.infer<typeof seriesFrontmatter>;
@@ -44,6 +53,8 @@ export const stepFrontmatter = z.object({
   verdict: z.enum(Object.keys(VERDICTS) as [Verdict, ...Verdict[]]),
   /** One line: what was measured, in the step list and under the title. */
   result: z.string(),
+  /** Headline numbers for the step's tiles; the first also labels it on the series map. */
+  metrics: z.array(metric).default([]),
   date: z.coerce.date(),
 });
 export type StepFrontmatter = z.infer<typeof stepFrontmatter>;

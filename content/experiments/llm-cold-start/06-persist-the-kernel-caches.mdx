@@ -3,24 +3,29 @@ title: "Persist the Triton and FlashInfer kernel caches"
 step: 6
 verdict: "falsified"
 result: "Keeping both JIT caches on a persistent volume changed nothing. The 40 s was somewhere below the frameworks."
+metrics:
+  - label: "Time to Ready"
+    value: "130 → 130 s"
+  - label: "First request, no graphs"
+    value: "44.7 → 44.7 s"
 date: 2026-10-08
 ---
 
-## The hypothesis
+<Figure caption="Keeping the framework kernel caches changed neither the start nor the first request.">
+  <StartupExplorer groups="5,6" first="on" />
+</Figure>
+
+## Hypothesis
 
 The 40 seconds looked like kernel compilation repeated on every pod start,
 because Triton's and FlashInfer's caches lived in the container's temporary home
 directory.
 
-## The change
+## Change
 
 Both caches moved to the persistent volume.
 
-<Figure caption="Both caches were written and read back. Neither the start nor the first request moved.">
-  <ColdStartBars set="kernel-caches" />
-</Figure>
-
-## The result
+## Result
 
 Both caches were written and read on later runs, with no change in the start or
 the first request. The vLLM log showed the engine idle for about 40 seconds
@@ -28,7 +33,7 @@ before it ran the warm-up request in about 5. A neighbouring pod on the same
 image held a 6.5 MB cache from the CUDA driver itself, also in a temporary
 directory.
 
-## The decision
+## Decision
 
 The hypothesis is out, and so is the layer it named. The time was being spent
 below the frameworks, and the driver's cache was the next lead.
