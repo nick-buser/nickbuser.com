@@ -6,6 +6,8 @@
  * cache is marked `fill`; one that never became Ready is marked `failed`.
  */
 
+import type { CSSProperties } from "react";
+
 export interface Run {
   run: number;
   pre: number;
@@ -207,18 +209,47 @@ export const GROUPS: Group[] = [
 export interface Phase {
   key: "pre" | "w" | "comp" | "prof" | "cap" | "rest" | "api" | "first";
   label: string;
-  color: string;
+  /** how a segment and its legend swatch are drawn */
+  css: CSSProperties;
 }
 
+/* A segment's right edge is cut by an inset shadow in the frame's colour; a
+   phase that sets its own box-shadow has to repeat that cut. */
+const CUT = "inset -1px 0 0 var(--background)";
+
+/* The two CUDA-graph phases share brass (profiling hatched, capture solid), so
+   the 104 graph seconds read as one family, and "rest of engine start" keeps
+   the accent: it's the 44 seconds that sat in every arm until step 7. */
 export const PHASES: Phase[] = [
-  { key: "pre", label: "Python before the engine", color: "var(--steel)" },
-  { key: "w", label: "Weights", color: "var(--verdigris)" },
-  { key: "comp", label: "Compile", color: "color-mix(in oklch, var(--verdigris) 45%, var(--brass))" },
-  { key: "prof", label: "Graph memory profiling", color: "color-mix(in oklch, var(--accent) 70%, var(--brass))" },
-  { key: "cap", label: "Graph capture", color: "var(--brass)" },
-  { key: "rest", label: "Rest of engine start", color: "var(--accent)" },
-  { key: "api", label: "API server and readiness", color: "color-mix(in oklch, var(--muted-foreground) 70%, transparent)" },
-  { key: "first", label: "First answer", color: "color-mix(in oklch, var(--foreground) 22%, transparent)" },
+  { key: "pre", label: "Python before the engine", css: { background: "var(--steel)" } },
+  { key: "w", label: "Weights", css: { background: "var(--verdigris)" } },
+  { key: "comp", label: "Compile", css: { background: "color-mix(in oklch, var(--verdigris) 45%, var(--brass))" } },
+  {
+    key: "prof",
+    label: "Graph memory profiling",
+    css: {
+      background:
+        "repeating-linear-gradient(135deg, var(--brass) 0 2px, color-mix(in oklch, var(--brass) 25%, transparent) 2px 5px)",
+    },
+  },
+  { key: "cap", label: "Graph capture", css: { background: "var(--brass)" } },
+  { key: "rest", label: "Rest of engine start", css: { background: "var(--accent)" } },
+  {
+    key: "api",
+    label: "API server and readiness",
+    css: {
+      background: "color-mix(in oklch, var(--muted-foreground) 14%, transparent)",
+      boxShadow: `inset 0 0 0 1px color-mix(in oklch, var(--muted-foreground) 75%, transparent), ${CUT}`,
+    },
+  },
+  {
+    key: "first",
+    label: "First answer",
+    css: {
+      background:
+        "repeating-linear-gradient(90deg, color-mix(in oklch, var(--foreground) 60%, transparent) 0 2px, transparent 2px 4px)",
+    },
+  },
 ];
 
 /** A run's seconds split into the drawn phases. Engine time not named elsewhere is "rest". */

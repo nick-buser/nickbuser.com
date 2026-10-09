@@ -1,16 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { GROUPS, PHASES, medianRun, segments, type Run } from "@/components/islands/cold-start-data";
+import { Fragment, useState, type CSSProperties } from "react";
+import {
+  GROUPS,
+  PHASES,
+  medianRun,
+  segments,
+  type Group,
+  type Phase,
+  type Run,
+} from "@/components/islands/cold-start-data";
 
 /**
  * Interactive charts for the LLM cold-start series (content/experiments/llm-cold-start).
  * MDX here can't pass data as props, so each chart's numbers live below, keyed by
  * the `set` a page asks for. Every number comes from the series' measurement ledger.
+ *
+ * The charts are HTML rows rather than a scaled SVG, so their text stays the size
+ * of the text around them at any width. A bar's length is a share of its track
+ * after `--reserve`, the room the longest value label needs, written in the
+ * track's monospace `ch`. Below 34rem a chart stacks each label over its bar.
  */
 
-const mono = "var(--font-mono)";
-const body = "var(--font-body)";
 const STEP = "/experiments/llm-cold-start";
 const STEP_SLUGS: Record<number, string> = {
   2: "02-build-the-measurement-rig",
@@ -272,6 +283,66 @@ const BAR_SETS: Record<string, BarSet> = {
   },
 };
 
+/** Room after the bars for the longest of `texts`, plus the gap before it. */
+function reserve(texts: string[]) {
+  return `calc(${Math.max(0, ...texts.map((t) => t.length))}ch + 10px)`;
+}
+
+/** A length along a track: the share `f` of the room left after the reserve. */
+function along(f: number) {
+  return `calc((100% - var(--reserve)) * ${Math.max(0, f).toFixed(4)})`;
+}
+
+function vars(v: Record<string, string>) {
+  return v as CSSProperties;
+}
+
+function Axis({ span, step = 30, unit = "s" }: { span: number; step?: number; unit?: string }) {
+  const ticks: number[] = [];
+  for (let t = 0; t <= span; t += step) ticks.push(t);
+  return (
+    <>
+      <span className="nb-rows__spacer" aria-hidden />
+      <div className="nb-axis" aria-hidden>
+        {ticks.map((t) => (
+          <span key={t} style={{ left: along(t / span) }}>
+            {t === 0 ? `0 ${unit}` : t}
+          </span>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function Views({
+  labels,
+  active,
+  onPick,
+  name,
+}: {
+  labels: string[];
+  active: number;
+  onPick: (i: number) => void;
+  name: string;
+}) {
+  if (labels.length < 2) return null;
+  return (
+    <div className="nb-chart__controls" role="group" aria-label={name}>
+      {labels.map((label, i) => (
+        <button
+          key={label}
+          type="button"
+          className="nb-chart__button"
+          aria-pressed={i === active}
+          onClick={() => onPick(i)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Horizontal bars with the value printed beside each. Several views switch in place. */
 export function ColdStartBars({ set }: { set: string }) {
   const data = BAR_SETS[set];
@@ -279,81 +350,46 @@ export function ColdStartBars({ set }: { set: string }) {
   if (!data) return null;
   const view = data.views[active] ?? data.views[0];
   const max = Math.max(...view.bars.map((b) => b.value ?? 0)) || 1;
-
-  const labelW = 230;
-  const barW = 260;
-  const rowH = 38;
-  const top = 30;
-  const height = top + view.bars.length * rowH + 4;
+  const drawn = view.bars.filter((b) => b.value !== null).map((b) => b.display);
 
   return (
     <div className="nb-chart">
-      {data.views.length > 1 ? (
-        <div className="nb-chart__controls" role="group" aria-label="Choose a measure">
-          {data.views.map((v, i) => (
-            <button
-              key={v.label}
-              type="button"
-              className="nb-chart__button"
-              aria-pressed={i === active}
-              onClick={() => setActive(i)}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      <svg
-        viewBox={`0 0 640 ${height}`}
-        role="img"
-        aria-label={`${data.title}: ${view.label}`}
-        style={{ width: "100%", height: "auto", display: "block" }}
-      >
-        <text
-          x={0}
-          y={14}
-          style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", fill: "var(--muted-foreground)" }}
-        >
-          {`${data.title} · ${view.label}`.toUpperCase()}
-        </text>
-        {view.bars.map((b, i) => {
-          const y = top + i * rowH;
-          const w = b.value === null ? 0 : Math.max(2, (b.value / max) * barW);
-          const row = (
-            <g key={b.label}>
-              <text x={0} y={y + 18} style={{ fontFamily: body, fontSize: 13.5, fill: "var(--foreground)" }}>
-                {b.label}
-              </text>
-              <rect
-                x={labelW}
-                y={y + 5}
-                width={w}
-                height={18}
-                rx={2}
-                style={{
-                  fill: b.emphasis ? "var(--accent)" : "var(--rule-warm)",
-                  opacity: b.emphasis ? 0.9 : 0.55,
-                  transition: "width 300ms var(--ease-heat)",
-                }}
-              />
-              <text
-                x={labelW + w + (b.value === null ? 0 : 10)}
-                y={y + 19}
-                style={{ fontFamily: mono, fontSize: 12, fill: "var(--muted-foreground)" }}
-              >
-                {b.display}
-              </text>
-            </g>
+      <p className="nb-chart__title">{`${data.title} · ${view.label}`}</p>
+      <Views
+        labels={data.views.map((v) => v.label)}
+        active={active}
+        onPick={setActive}
+        name="Choose a measure"
+      />
+      <div className="nb-rows" style={vars({ "--reserve": reserve(drawn) })}>
+        {view.bars.map((b) => {
+          const contents = (
+            <>
+              {b.value !== null ? (
+                <span
+                  className={b.emphasis ? "nb-bar nb-bar--em" : "nb-bar"}
+                  style={{ width: along(b.value / max) }}
+                />
+              ) : null}
+              <span className="nb-rows__value">{b.display}</span>
+            </>
           );
-          return b.href ? (
-            <a key={b.label} href={b.href} aria-label={`${b.label}: ${b.display}`}>
-              {row}
-            </a>
-          ) : (
-            row
+          return (
+            <Fragment key={b.label}>
+              <div className={b.emphasis ? "nb-rows__label nb-rows__label--em" : "nb-rows__label"}>
+                {b.href ? <a href={b.href}>{b.label}</a> : b.label}
+              </div>
+              {b.href ? (
+                <a className="nb-rows__track" href={b.href} tabIndex={-1} aria-hidden>
+                  {contents}
+                </a>
+              ) : (
+                <div className="nb-rows__track">{contents}</div>
+              )}
+            </Fragment>
           );
         })}
-      </svg>
+      </div>
       {data.note ? <p className="nb-chart__note">{data.note}</p> : null}
     </div>
   );
@@ -417,145 +453,96 @@ const LANE_SETS: Record<string, string[]> = {
   all: ["retry", "poll", "hold", "fork"],
 };
 
+const LANE_SPAN = 160;
+
 /** One cold request per lane, from send to first token, with the 503s it was sent. */
 export function ColdRequestTimeline({ set = "all" }: { set?: string }) {
   const lanes = (LANE_SETS[set] ?? LANE_SETS.all).map((k) => LANES[k]);
   const [picked, setPicked] = useState(lanes[lanes.length - 1].key);
   const current = lanes.find((l) => l.key === picked) ?? lanes[0];
 
-  const left = 190;
-  const width = 430;
-  const span = 160;
-  const x = (s: number) => left + (s / span) * width;
-  const laneH = 44;
-  const top = 34;
-  const axisY = top + lanes.length * laneH + 6;
-  const height = axisY + 24;
-
   return (
     <div className="nb-chart">
-      <div className="nb-chart__controls" role="group" aria-label="Choose a client">
-        {lanes.map((l) => (
-          <button
-            key={l.key}
-            type="button"
-            className="nb-chart__button"
-            aria-pressed={l.key === picked}
-            onClick={() => setPicked(l.key)}
-          >
-            {l.label}
-          </button>
-        ))}
-      </div>
-      <svg
-        viewBox={`0 0 640 ${height}`}
-        role="img"
-        aria-label="A cold request's timeline for each client"
-        style={{ width: "100%", height: "auto", display: "block" }}
-      >
-        <text
-          x={0}
-          y={14}
-          style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", fill: "var(--muted-foreground)" }}
-        >
-          FROM THE REQUEST TO THE FIRST TOKEN, SECONDS
-        </text>
-        {lanes.map((l, i) => {
-          const y = top + i * laneH;
-          const on = l.key === picked;
+      <p className="nb-chart__title">From the request to the first token, seconds</p>
+      <Views
+        labels={lanes.map((l) => l.label)}
+        active={lanes.indexOf(current)}
+        onPick={(i) => setPicked(lanes[i].key)}
+        name="Choose a client"
+      />
+      <div className="nb-rows" style={vars({ "--reserve": reserve(lanes.map((l) => `${l.first} s`)) })}>
+        {lanes.map((l) => {
+          const on = l.key === current.key;
+          const at = (s: number) => along(s / LANE_SPAN);
           return (
-            <g
-              key={l.key}
-              onClick={() => setPicked(l.key)}
-              style={{ cursor: "pointer", opacity: on ? 1 : 0.5, transition: "opacity 200ms var(--ease-heat)" }}
-            >
-              <text x={0} y={y + 20} style={{ fontFamily: body, fontSize: 13, fill: "var(--foreground)" }}>
-                {l.label}
-              </text>
-              <rect
-                x={left}
-                y={y + 10}
-                width={x(l.first) - left}
-                height={14}
-                rx={2}
-                style={{ fill: on ? "var(--accent)" : "var(--rule-warm)", opacity: 0.35 }}
-              />
-              <line
-                x1={x(l.ready)}
-                x2={x(l.ready)}
-                y1={y + 4}
-                y2={y + 30}
-                style={{ stroke: "var(--positive)", strokeWidth: 2 }}
-              />
-              {l.rejects.map((t) => (
-                <line
-                  key={t}
-                  x1={x(t)}
-                  x2={x(t)}
-                  y1={y + 8}
-                  y2={y + 26}
-                  style={{ stroke: "var(--muted-foreground)", strokeWidth: 1.5 }}
-                />
-              ))}
-              <circle cx={x(l.first)} cy={y + 17} r={5} style={{ fill: "var(--accent)" }} />
-              <text
-                x={Math.min(x(l.first) + 9, 600)}
-                y={y + 21}
-                style={{ fontFamily: mono, fontSize: 11.5, fill: "var(--muted-foreground)" }}
+            <Fragment key={l.key}>
+              <div
+                className={on ? "nb-rows__label nb-rows__label--em" : "nb-rows__label is-dim"}
+                onClick={() => setPicked(l.key)}
               >
-                {`${l.first} s`}
-              </text>
-            </g>
+                {l.label}
+              </div>
+              <div className={on ? "nb-lane is-on" : "nb-lane is-dim"} onClick={() => setPicked(l.key)}>
+                <span className="nb-lane__wait" style={{ width: at(l.first) }} />
+                {l.rejects.map((t) => (
+                  <span key={t} className="nb-lane__reject" style={{ left: at(t) }} />
+                ))}
+                <span className="nb-lane__ready" style={{ left: at(l.ready) }} />
+                <span className="nb-lane__first" style={{ left: at(l.first) }} />
+                <span className="nb-lane__value" style={{ left: `calc(${at(l.first)} + 10px)` }}>
+                  {`${l.first} s`}
+                </span>
+              </div>
+            </Fragment>
           );
         })}
-        <line x1={left} x2={left + width} y1={axisY} y2={axisY} style={{ stroke: "var(--border)" }} />
-        {[0, 30, 60, 90, 120, 150].map((t) => (
-          <text
-            key={t}
-            x={x(t)}
-            y={axisY + 16}
-            textAnchor="middle"
-            style={{ fontFamily: mono, fontSize: 10.5, fill: "var(--muted-foreground)" }}
-          >
-            {t}
-          </text>
-        ))}
-      </svg>
+        <Axis span={LANE_SPAN} />
+      </div>
       <p className="nb-chart__note">
-        <span style={{ color: "var(--positive)" }}>Green line</span>: the model reports Ready. Grey
-        ticks: a 503 sent to the caller. Dot: the first token. {current.detail}
+        <span className="nb-key nb-key--ready" aria-hidden /> the model reports Ready.{" "}
+        <span className="nb-key nb-key--reject" aria-hidden /> a 503 sent to the caller.{" "}
+        <span className="nb-key nb-key--first" aria-hidden /> the first token. {current.detail}
       </p>
     </div>
   );
 }
 
-interface Phase {
-  label: string;
-  seconds: number;
-  color: string;
+function Legend({ phases }: { phases: Phase[] }) {
+  return (
+    <div className="nb-legend" aria-hidden>
+      {phases.map((p) => (
+        <span key={p.key} className="nb-legend__item">
+          <span className="nb-legend__swatch" style={p.css} />
+          {p.label}
+        </span>
+      ))}
+    </div>
+  );
 }
 
-const ANATOMY: { label: string; total: string; phases: Phase[] }[] = [
+const phase = (key: Phase["key"]) => PHASES.find((p) => p.key === key)!;
+
+const ANATOMY: { label: string; total: string; phases: { key: Phase["key"]; seconds: number }[] }[] = [
   {
     label: "Before: the twin",
     total: "141 s",
     phases: [
-      { label: "Python before the engine", seconds: 22.4, color: "var(--steel)" },
-      { label: "Weights", seconds: 2.5, color: "var(--verdigris)" },
-      { label: "Graph memory profiling", seconds: 52, color: "var(--accent)" },
-      { label: "Graph capture", seconds: 52, color: "var(--brass)" },
-      { label: "Rest of engine start", seconds: 3, color: "var(--rule-cool)" },
-      { label: "API server and readiness", seconds: 9.1, color: "var(--muted-foreground)" },
+      { key: "pre", seconds: 22.4 },
+      { key: "w", seconds: 2.5 },
+      { key: "prof", seconds: 52 },
+      { key: "cap", seconds: 52 },
+      { key: "rest", seconds: 3 },
+      { key: "api", seconds: 9.1 },
     ],
   },
   {
     label: "After: production",
     total: "36 s",
     phases: [
-      { label: "Python before the engine", seconds: 17, color: "var(--steel)" },
-      { label: "Weights", seconds: 2.6, color: "var(--verdigris)" },
-      { label: "Rest of engine start", seconds: 4.4, color: "var(--rule-cool)" },
-      { label: "API server and readiness", seconds: 12.1, color: "var(--muted-foreground)" },
+      { key: "pre", seconds: 17 },
+      { key: "w", seconds: 2.6 },
+      { key: "rest", seconds: 4.4 },
+      { key: "api", seconds: 12.1 },
     ],
   },
 ];
@@ -563,83 +550,88 @@ const ANATOMY: { label: string; total: string; phases: Phase[] }[] = [
 /** Where a start's seconds go, before the series and after it. Hover or tap a segment. */
 export function StartupAnatomy() {
   const [hover, setHover] = useState<string | null>(null);
-  const left = 150;
-  const width = 470;
   const span = 141;
-  const rowH = 52;
-  const top = 30;
-  const height = top + ANATOMY.length * rowH + 6;
-  const found = ANATOMY.flatMap((r) => r.phases.map((p) => ({ row: r.label, ...p }))).find(
-    (p) => `${p.row}/${p.label}` === hover,
+  const used = PHASES.filter((p) => ANATOMY.some((r) => r.phases.some((x) => x.key === p.key)));
+  const found = ANATOMY.flatMap((r) => r.phases.map((x) => ({ row: r.label, ...x }))).find(
+    (x) => `${x.row}/${x.key}` === hover,
   );
 
   return (
     <div className="nb-chart">
-      <svg
-        viewBox={`0 0 640 ${height}`}
-        role="img"
-        aria-label="Startup phases before and after the series"
-        style={{ width: "100%", height: "auto", display: "block" }}
-      >
-        <text
-          x={0}
-          y={14}
-          style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", fill: "var(--muted-foreground)" }}
-        >
-          FROM SCALE-UP TO READY, BY PHASE
-        </text>
-        {ANATOMY.map((r, i) => {
-          const y = top + i * rowH;
-          let cursor = left;
-          return (
-            <g key={r.label}>
-              <text x={0} y={y + 18} style={{ fontFamily: body, fontSize: 13.5, fill: "var(--foreground)" }}>
-                {r.label}
-              </text>
-              <text x={0} y={y + 34} style={{ fontFamily: mono, fontSize: 11, fill: "var(--muted-foreground)" }}>
-                {r.total}
-              </text>
-              {r.phases.map((p) => {
-                const w = (p.seconds / span) * width;
-                const key = `${r.label}/${p.label}`;
-                const seg = (
-                  <rect
-                    key={p.label}
-                    x={cursor}
-                    y={y + 6}
-                    width={Math.max(w - 1, 1)}
-                    height={26}
-                    style={{
-                      fill: p.color,
-                      opacity: hover === null || hover === key ? 0.85 : 0.3,
-                      cursor: "pointer",
-                      transition: "opacity 150ms var(--ease-heat)",
-                    }}
+      <p className="nb-chart__title">From scale-up to Ready, by phase</p>
+      <div className="nb-rows" style={vars({ "--reserve": "0px" })}>
+        {ANATOMY.map((r) => (
+          <Fragment key={r.label}>
+            <div className="nb-rows__label">
+              {r.label} <span className="nb-rows__aside">{r.total}</span>
+            </div>
+            <div className="nb-rows__track nb-stack nb-stack--tall">
+              {r.phases.map((x) => {
+                const key = `${r.label}/${x.key}`;
+                const p = phase(x.key);
+                return (
+                  <span
+                    key={x.key}
+                    className={hover && hover !== key ? "nb-seg is-dim" : "nb-seg"}
+                    style={{ ...p.css, width: along(x.seconds / span) }}
+                    title={`${p.label}: ${x.seconds} s`}
                     onMouseEnter={() => setHover(key)}
                     onMouseLeave={() => setHover(null)}
                     onClick={() => setHover(key)}
-                  >
-                    <title>{`${p.label}: ${p.seconds} s`}</title>
-                  </rect>
+                  />
                 );
-                cursor += w;
-                return seg;
               })}
-            </g>
-          );
-        })}
-      </svg>
+            </div>
+          </Fragment>
+        ))}
+      </div>
+      <Legend phases={used} />
       <p className="nb-chart__note">
-        {found
-          ? `${found.row}. ${found.label}: ${found.seconds} s.`
-          : "Hover or tap a segment for its time."}{" "}
-        The two rows come from different systems: the twin's readiness probe runs every 10 s and
-        production's every 5 s, so only the engine phases compare directly.
+        {found ? `${found.row}. ${phase(found.key).label}: ${found.seconds} s. ` : "Hover or tap a segment for its time. "}
+        The two rows come from different systems: the twin&apos;s readiness probe runs every 10 s and
+        production&apos;s every 5 s, so only the engine phases compare directly.
       </p>
     </div>
   );
 }
 
+type Row = { key: string; label: string; run: Run | null; note?: string };
+
+/** The rows a group shows: each arm's median run, or every run with its fills and failures. */
+function rowsOf(g: Group, every: boolean): Row[] {
+  const rows: Row[] = [];
+  for (const a of g.arms) {
+    if (every) {
+      for (const x of a.runs) {
+        rows.push({
+          key: `${g.step}/${a.label}/${x.run}`,
+          label: `${a.label} · run ${x.run}`,
+          run: x.failed ? null : x,
+          note: x.failed ?? (x.fill ? "cache fill" : undefined),
+        });
+      }
+    } else {
+      const m = medianRun(a);
+      const failed = a.runs.filter((x) => x.failed).length;
+      rows.push({
+        key: `${g.step}/${a.label}`,
+        label: a.label,
+        run: m,
+        note: m ? (failed ? `${failed} of ${a.runs.length} failed` : undefined) : "no clean run",
+      });
+    }
+  }
+  return rows;
+}
+
+function totalOf(run: Run, withFirst: boolean) {
+  return run.total + (withFirst && run.first !== undefined ? run.first : 0);
+}
+
+function valueText(row: Row, withFirst: boolean) {
+  if (!row.run) return row.note ?? "";
+  return `${Math.round(totalOf(row.run, withFirst))} s${row.note ? ` · ${row.note}` : ""}`;
+}
 
 /**
  * Every measured start of the twin, as a stacked bar of its phases, grouped by
@@ -654,49 +646,18 @@ export function StartupExplorer({ groups, first = "off" }: { groups?: string; fi
   const [hover, setHover] = useState<string | null>(null);
   const anyFirst = shown.some((g) => g.arms.some((a) => a.runs.some((x) => x.first !== undefined)));
 
-  type Row = { key: string; label: string; run: Run | null; note?: string };
-  const blocks = shown.map((g) => {
-    const rows: Row[] = [];
-    for (const a of g.arms) {
-      if (every) {
-        for (const x of a.runs) {
-          rows.push({
-            key: `${g.step}/${a.label}/${x.run}`,
-            label: `${a.label} · run ${x.run}`,
-            run: x.failed ? null : x,
-            note: x.failed ?? (x.fill ? "fills its cache" : undefined),
-          });
-        }
-      } else {
-        const m = medianRun(a);
-        const failed = a.runs.filter((x) => x.failed).length;
-        rows.push({
-          key: `${g.step}/${a.label}`,
-          label: a.label,
-          run: m,
-          note: m ? (failed ? `${failed} of ${a.runs.length} runs failed` : undefined) : "no clean run",
-        });
-      }
-    }
-    return { group: g, rows };
-  });
-
-  const span = 180;
-  const W = 1000;
-  const labelW = 250;
-  const barW = W - labelW - 70;
-  const x = (s: number) => labelW + (s / span) * barW;
-  const rowH = 20;
-  const headH = 26;
-  let y = 30;
-  const layout = blocks.map((b) => {
-    const top = y;
-    y += headH + b.rows.length * rowH + 6;
-    return { ...b, top };
-  });
-  const height = y + 26;
+  // One scale and one reserve for every combination of the toggles, so flipping
+  // one never rescales the bars underneath it.
+  const all = shown.flatMap((g) => g.arms.flatMap((a) => a.runs)).filter((x) => !x.failed);
+  const span = Math.ceil(Math.max(...all.map((x) => totalOf(x, true))) / 30) * 30;
+  const texts = [false, true].flatMap((e) =>
+    [false, true].flatMap((f) =>
+      shown.flatMap((g) => rowsOf(g, e).filter((r) => r.run).map((r) => valueText(r, f))),
+    ),
+  );
 
   const found = hover ? hover.split("|") : null;
+  const phases = PHASES.filter((p) => p.key !== "first" || withFirst);
 
   return (
     <div className="nb-chart">
@@ -714,89 +675,60 @@ export function StartupExplorer({ groups, first = "off" }: { groups?: string; fi
             aria-pressed={withFirst}
             onClick={() => setWithFirst((v) => !v)}
           >
-            {withFirst ? "Ready + first answer" : "Time to Ready"}
+            + First answer
           </button>
         ) : null}
       </div>
-      <svg viewBox={`0 0 ${W} ${height}`} role="img" aria-label="Startup phases of every measured start" style={{ width: "100%", height: "auto", display: "block" }}>
-        {[0, 30, 60, 90, 120, 150, 180].map((t) => (
-          <g key={t}>
-            <line x1={x(t)} x2={x(t)} y1={24} y2={height - 22} style={{ stroke: "var(--border)", strokeWidth: 1 }} />
-            <text x={x(t)} y={height - 8} textAnchor="middle" style={{ fontFamily: mono, fontSize: 11, fill: "var(--muted-foreground)" }}>
-              {t === 0 ? "0 s" : t}
-            </text>
-          </g>
-        ))}
-        {layout.map(({ group, rows, top }) => (
-          <g key={group.step}>
-            <a href={`${STEP}/${STEP_SLUGS[group.step]}`} style={{ textDecoration: "none" }}>
-              <text x={0} y={top + 16} style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.08em", fill: "var(--brass)" }}>
-                {`STEP ${String(group.step).padStart(2, "0")} · ${group.title.toUpperCase()}`}
-              </text>
+      <div
+        className="nb-rows nb-rows--dense"
+        style={vars({ "--reserve": reserve(texts), "--tick": `${((30 / span) * 100).toFixed(4)}%` })}
+      >
+        {shown.map((g) => (
+          <Fragment key={g.step}>
+            <a className="nb-rows__group" href={`${STEP}/${STEP_SLUGS[g.step]}`}>
+              {`Step ${String(g.step).padStart(2, "0")} · ${g.title}`}
             </a>
-            {rows.map((row, i) => {
-              const ry = top + headH + i * rowH;
-              let cursor = labelW;
+            {rowsOf(g, every).map((row) => {
               const segs = row.run ? segments(row.run, withFirst) : null;
-              const total = row.run ? row.run.total + (withFirst && row.run.first !== undefined ? row.run.first : 0) : 0;
               return (
-                <g key={row.key}>
-                  <text x={0} y={ry + 13} style={{ fontFamily: body, fontSize: 13, fill: "var(--foreground)" }}>
-                    {row.label}
-                  </text>
-                  {segs
-                    ? PHASES.map((p) => {
-                        const v = segs[p.key];
-                        if (v <= 0) return null;
-                        const w = (v / span) * barW;
-                        const id = `${row.label}|${p.label}|${v.toFixed(1)}`;
-                        const rect = (
-                          <rect
-                            key={p.key}
-                            x={cursor}
-                            y={ry + 3}
-                            width={Math.max(w - 0.6, 0.6)}
-                            height={rowH - 6}
-                            style={{
-                              fill: p.color,
-                              opacity: hover && !hover.startsWith(`${row.label}|${p.label}|`) ? 0.45 : 0.92,
-                              cursor: "pointer",
-                            }}
-                            onMouseEnter={() => setHover(id)}
-                            onMouseLeave={() => setHover(null)}
-                            onClick={() => setHover(id)}
-                          >
-                            <title>{`${p.label}: ${v.toFixed(1)} s`}</title>
-                          </rect>
-                        );
-                        cursor += w;
-                        return rect;
-                      })
-                    : null}
-                  <text
-                    x={segs ? Math.min(cursor + 6, W - 66) : labelW}
-                    y={ry + 13}
-                    style={{ fontFamily: mono, fontSize: 11, fill: "var(--muted-foreground)" }}
-                  >
-                    {segs ? `${Math.round(total)} s${row.note ? ` · ${row.note}` : ""}` : row.note}
-                  </text>
-                </g>
+                <Fragment key={row.key}>
+                  <div className="nb-rows__label">{row.label}</div>
+                  <div className="nb-rows__track nb-stack">
+                    {segs
+                      ? phases.map((p) => {
+                          const v = segs[p.key];
+                          if (v <= 0) return null;
+                          const id = `${row.label}|${p.label}|${v.toFixed(1)}`;
+                          const lit = !hover || hover.startsWith(`${row.label}|${p.label}|`);
+                          return (
+                            <span
+                              key={p.key}
+                              className={lit ? "nb-seg" : "nb-seg is-dim"}
+                              style={{ ...p.css, width: along(v / span) }}
+                              title={`${p.label}: ${v.toFixed(1)} s`}
+                              onMouseEnter={() => setHover(id)}
+                              onMouseLeave={() => setHover(null)}
+                              onClick={() => setHover(id)}
+                            />
+                          );
+                        })
+                      : null}
+                    <span className={row.run ? "nb-rows__value" : "nb-rows__value nb-rows__value--alone"}>
+                      {valueText(row, withFirst)}
+                    </span>
+                  </div>
+                </Fragment>
               );
             })}
-          </g>
+          </Fragment>
         ))}
-      </svg>
-      <div className="nb-legend" aria-hidden>
-        {PHASES.filter((p) => p.key !== "first" || withFirst).map((p) => (
-          <span key={p.key} className="nb-legend__item">
-            <span className="nb-legend__swatch" style={{ background: p.color }} />
-            {p.label}
-          </span>
-        ))}
+        <Axis span={span} />
       </div>
+      <Legend phases={phases} />
       <p className="nb-chart__note">
         {found ? `${found[0]}. ${found[1]}: ${found[2]} s. ` : "Hover or tap a segment for its time. "}
-        The twin's readiness probe runs every 10 s, so totals land on 10-second steps and the last segment absorbs the wait.
+        The twin&apos;s readiness probe runs every 10 s, so totals land on 10-second steps and the last
+        segment absorbs the wait.
       </p>
     </div>
   );
