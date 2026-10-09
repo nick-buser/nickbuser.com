@@ -13,8 +13,8 @@ metrics:
 date: 2026-10-08
 ---
 
-<Figure caption="The wake path. The gateway scales the model up when a request finds it cold, the reaper scales it down after an hour without one, and Kueue admits the pod into the one-LLM slot.">
-  <WakePathFlow />
+<Figure caption="The 7B's life cycle as first built. A request that finds it asleep makes the gateway scale it up, Kueue admits the pod into the one-LLM slot, and the idle reaper scales it back down after an hour without requests.">
+  <WakeCycle stage="first" />
 </Figure>
 
 ## Problem

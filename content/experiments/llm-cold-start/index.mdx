@@ -24,8 +24,8 @@ left running, holding about 12 GB of the card. I wanted three things: keep the
 card free for experiments, let any app's request wake the model, and make that
 wake as short as possible. Fifteen measured steps got there.
 
-<Figure num="Fig. 1" caption="The wake path. A request that finds the model at zero makes the gateway scale it up, Kueue admits it into the one-LLM slot, and the idle reaper scales it back down after an hour without requests.">
-  <WakePathFlow />
+<Figure num="Fig. 1" caption="The 7B's life cycle at the end of the series. A request that finds it asleep makes the gateway scale it up and hold the request, Kueue admits the pod into the one-LLM slot, and the idle reaper scales it back down after an hour without requests.">
+  <WakeCycle />
 </Figure>
 
 ## How it was measured
