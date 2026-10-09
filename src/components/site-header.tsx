@@ -16,12 +16,9 @@ export function SiteHeader() {
   return (
     <header className="border-b border-border">
       <div className="nb-wrap nb-header">
-        <Link
-          href="/"
-          aria-label={`${site.name} — home`}
-          className="nb-header__name"
-        >
-          {site.name}
+        {/* "Home", not the name: the home masthead already says it, in large type. */}
+        <Link href="/" className="nb-header__name">
+          Home
         </Link>
         <nav className="nb-nav" aria-label="Site">
           {site.nav.map((item) => {
