@@ -1890,7 +1890,8 @@ pre[data-theme] {
   margin: var(--space-4) 0 var(--space-5);
   transform: none;
 }
-.nb-dense .nb-figure__frame {
+.nb-dense .nb-figure__frame,
+.nb-figure__frame:has(.nb-chart, .nb-cycle) {
   padding: 12px 14px;
 }
 .nb-dense .nb-figure__frame:has(.nb-flow) {

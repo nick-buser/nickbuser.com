@@ -1,7 +1,7 @@
 /**
  * Diagrams for the LLM cold-start series (content/experiments/llm-cold-start).
  * Plain HTML, so the text stays legible at any width: a row on a wide page, a
- * column on a narrow one.
+ * column on a narrow one. Numbers keep their units with a no-break space.
  */
 
 type Item =
@@ -18,7 +18,7 @@ const ASLEEP: Item = {
 const SERVING: Item = {
   state: true,
   kind: "Serving",
-  name: "About 12 GB of the card",
+  name: "About 12\u00a0GB of the card",
   sub: "OpenAI-style requests from any app or agent.",
   tone: "sacred",
 };
@@ -35,14 +35,14 @@ const CYCLES: Record<"first" | "now", Item[]> = {
     {
       state: true,
       kind: "Waking",
-      name: "Ready in about 145 s",
+      name: "Ready in about 145\u00a0s",
       sub: "Kueue admits the pod into the one-LLM slot.",
       tone: "warm",
     },
     {
       state: false,
       who: "Ready",
-      what: "A client retrying every 10 s got its first answer at 151 s.",
+      what: "A client retrying every 10\u00a0s got its first answer at 151\u00a0s.",
     },
     SERVING,
   ],
@@ -51,16 +51,16 @@ const CYCLES: Record<"first" | "now", Item[]> = {
     {
       state: false,
       who: "A request",
-      what: "The LLM gateway scales the model 0 → 1 and holds the request, up to 60 s.",
+      what: "The LLM gateway scales the model 0 → 1 and holds the request, up to 60\u00a0s.",
     },
     {
       state: true,
       kind: "Waking",
-      name: "Ready in about 35 s",
+      name: "Ready in about 35\u00a0s",
       sub: "Kueue admits the pod into the one-LLM slot. The driver's kernel cache is read back from the volume.",
       tone: "warm",
     },
-    { state: false, who: "Ready", what: "The gateway forwards the held request. First token at 36.5 s." },
+    { state: false, who: "Ready", what: "The gateway forwards the held request. First token at 36.5\u00a0s." },
     SERVING,
   ],
 };
