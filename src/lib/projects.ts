@@ -24,7 +24,7 @@ export type ProjectCategory = "platform" | "software" | "modelling" | "essay";
 
 export interface Project {
   title: string;
-  /** One plain sentence: what it is, read by moving through it. */
+  /** One plain sentence: what it is. */
   result: string;
   stack: string[];
   status: ProjectStatus;
@@ -58,7 +58,7 @@ export const CATEGORIES: { id: ProjectCategory; title: string; lead: string }[] 
   {
     id: "essay",
     title: "Visual essay",
-    lead: "Interactive explorables, read by moving through them.",
+    lead: "Interactive explainers I build with LLMs to learn subjects I want to understand.",
   },
 ];
 
@@ -199,7 +199,7 @@ export const projects: Project[] = [
   {
     title: "Whale Talk",
     result:
-      "An interactive visual essay on how whales — and animals more broadly — communicate, read by moving through it.",
+      "An interactive visual essay on how whales, and animals more broadly, communicate.",
     stack: ["html / css / js", "cloudflare workers"],
     status: "Live",
     category: "essay",
@@ -223,7 +223,7 @@ export const projects: Project[] = [
   {
     title: "Math Explorer",
     result:
-      "An interactive explorer for mathematical ideas, built to be understood by moving through them.",
+      "An interactive explorer for mathematical ideas you can manipulate directly.",
     stack: ["cloudflare"],
     status: "Live",
     category: "essay",
